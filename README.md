@@ -6,7 +6,7 @@
 
 <p align="center"><a href="https://github.com/jfreema/yafie/raw/main/downloads/Yafie.pkg"><img src="docs/download.svg" width="260" alt="Download Yafie"></a></p>
 
-<p align="center">Version 0.9.0 · macOS 14 or later · Apple silicon or Intel</p>
+<p align="center">Version 0.9.1 · macOS 14 or later · Apple silicon or Intel</p>
 
 <table>
   <tr>
