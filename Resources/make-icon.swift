@@ -101,8 +101,8 @@ func drawSocialPreview(_ ctx: CGContext) {
 
 // MARK: Menu bar icon
 
-// Points. A shade taller than the 14-point symbol it replaced; outline weight to match Wi-Fi's.
-let menuIconSize = CGSize(width: 14, height: 15)
+// Points. A shade taller than the 14-point symbol it replaced, wide enough for the Y; outline weight to match Wi-Fi's.
+let menuIconSize = CGSize(width: 16, height: 15)
 let menuOutlineStroke: CGFloat = 1.2
 
 func alphaMask(_ image: CGImage) -> [UInt8] {

@@ -373,15 +373,15 @@ private extension LidAwakeController.Status {
 private extension LoudnessMeter.Loudness {
     /// The filled icon: green while it's quiet or soft, then bright yellow, orange or red
     var icon: NSImage? {
-        guard let j = NSImage(named: "MenuIcon") else { return nil }
+        guard let glyph = NSImage(named: "MenuIcon") else { return nil }
         let color: NSColor = switch self {
         case .quiet, .soft: .systemGreen
         case .medium: .systemYellow
         case .loud: .systemOrange
         case .veryLoud: .systemRed
         }
-        let image = NSImage(size: j.size, flipped: false) { rect in
-            j.draw(in: rect)
+        let image = NSImage(size: glyph.size, flipped: false) { rect in
+            glyph.draw(in: rect)
             color.set()
             rect.fill(using: .sourceAtop)
             return true
