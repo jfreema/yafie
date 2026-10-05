@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private struct OpenMenu {
         let summary: NSMenuItem
         let stayAwake: ToggleRow
+        let power: ToggleRow
         let online: ToggleRow
         let action: NSMenuItem
         let snap: ToggleRow
@@ -119,18 +120,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         previews.refresh()
         snipper.refresh()
         menu.removeAllItems()
+
+        menu.addItem(.sectionHeader(title: "Stay Awake"))
+        // What it's doing now, which the menu bar icon shows too
         let summary = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         summary.isEnabled = false
         menu.addItem(summary)
-        menu.addItem(.separator())
-
-        let stayAwake = ToggleRow("Stay Awake with Lid Closed While Plugged In") { [weak self] on in
-            self?.setStayAwake(on)
+        let stayAwake = ToggleRow("Stay Awake with Lid Closed") { [weak self] on in self?.setStayAwake(on) }
+        let power = ToggleRow("Only While Connected to Power", indented: true) { [weak self] on in
+            self?.controller.setRequiresPower(on)
         }
         let online = ToggleRow("Only While Connected to the Internet", indented: true) { [weak self] on in
             self?.controller.setRequiresInternet(on)
         }
         menu.addItem(viewItem(stayAwake))
+        menu.addItem(viewItem(power))
         menu.addItem(viewItem(online))
         // Sleep Now, Finish Setup… or Turn Sleep Back On…, when the status calls for one
         let action = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -138,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(action)
 
         menu.addItem(.separator())
+        menu.addItem(.sectionHeader(title: "Windows"))
         let snap = ToggleRow("Snap Windows with ⌃⌥ Arrow Keys") { [weak self] on in self?.setSnapWindows(on) }
         let thirds = ToggleRow("Snap to Thirds on External Displays", indented: true) { [weak self] on in
             self?.snapper.setUsesThirds(on)
@@ -148,8 +153,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let snapAction = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         snapAction.target = self
         menu.addItem(snapAction)
-
-        menu.addItem(.separator())
         let preview = ToggleRow("Show App Previews in the Dock") { [weak self] on in self?.setAppPreviews(on) }
         menu.addItem(viewItem(preview))
         // While a permission is missing
@@ -157,20 +160,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(previewAction)
 
         menu.addItem(.separator())
+        menu.addItem(.sectionHeader(title: "Tools"))
         let snip = ToggleRow("Snip the Screen with ⌃⌥P") { [weak self] on in self?.setSnipScreen(on) }
         menu.addItem(viewItem(snip))
         // Allow Screen Snipping…, or why the shortcut didn't take, when the status calls for one
         let snipAction = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         snipAction.target = self
         menu.addItem(snipAction)
-
-        menu.addItem(.separator())
         menu.addItem(item("Guitar Tuner…", #selector(openTuner)))
 
+        // Yafie itself
         menu.addItem(.separator())
         let login = ToggleRow("Open at Login") { [weak self] on in self?.setOpenAtLogin(on) }
         menu.addItem(viewItem(login))
-        menu.addItem(.separator())
         menu.addItem(item("About Yafie", #selector(showAbout)))
         if updater.isBusy {
             let busy = NSMenuItem(title: "Checking for Updates…", action: nil, keyEquivalent: "")
@@ -183,7 +185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(NSMenuItem(title: "Quit Yafie",
                                 action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
 
-        openMenu = OpenMenu(summary: summary, stayAwake: stayAwake, online: online, action: action,
+        openMenu = OpenMenu(summary: summary, stayAwake: stayAwake, power: power, online: online, action: action,
                             snap: snap, thirds: thirds, snapAction: snapAction, preview: preview,
                             previewAction: previewAction, snip: snip, snipAction: snipAction, login: login)
         refreshMenu()
@@ -203,8 +205,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let status = controller.status
         menu.summary.title = status.summary
         menu.stayAwake.isOn = controller.isEnabled
+        menu.power.isOn = controller.requiresPower
         menu.online.isOn = controller.requiresInternet
-        // Only means something while the main switch is on
+        // Only mean something while the main switch is on
+        menu.power.isEnabled = controller.isEnabled
         menu.online.isEnabled = controller.isEnabled
         menu.login.isOn = SMAppService.mainApp.status == .enabled
 
@@ -212,7 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .active: ("Sleep Now", #selector(sleepNow))
         case .needsSetup: ("Finish Setup…", #selector(finishSetup))
         case .restoreFailed: ("Turn Sleep Back On…", #selector(retryRestore))
-        case .off, .waitingForPower, .waitingForInternet: nil
+        case .off, .waitingForPower, .lowBattery, .waitingForInternet: nil
         }
         menu.action.title = action?.title ?? ""
         menu.action.action = action?.selector
@@ -379,8 +383,10 @@ private extension LidAwakeController.Status {
         switch self {
         case .off: "Off: closing the lid sleeps your Mac"
         case .waitingForPower: "On battery: sleeps normally until plugged in"
+        case .lowBattery: "Battery low: sleeps normally until plugged in"
         case .waitingForInternet: "Offline: sleeps normally until back online"
-        case .active: "Plugged in: stays awake with the lid closed"
+        case .active(let onBattery):
+            onBattery ? "On battery: stays awake with the lid closed" : "Plugged in: stays awake with the lid closed"
         case .needsSetup: "Needs your password once to finish setup"
         case .restoreFailed: "Couldn't turn sleep back on"
         }
@@ -389,7 +395,7 @@ private extension LidAwakeController.Status {
     /// The icon, filled while it keeps the Mac awake
     var icon: NSImage? {
         switch self {
-        case .off, .waitingForPower, .waitingForInternet: NSImage(named: "MenuIconOutline")
+        case .off, .waitingForPower, .lowBattery, .waitingForInternet: NSImage(named: "MenuIconOutline")
         case .active: NSImage(named: "MenuIcon")
         case .needsSetup, .restoreFailed: NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: nil)
         }

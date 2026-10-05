@@ -10,7 +10,7 @@
 
 <table>
   <tr>
-    <td width="50%"><b><a href="#stay-awake-with-the-lid-closed">Stay awake with the lid closed</a></b><br>Keeps a plugged-in MacBook running with its lid shut.</td>
+    <td width="50%"><b><a href="#stay-awake-with-the-lid-closed">Stay awake with the lid closed</a></b><br>Keeps a MacBook running with its lid shut, plugged in or on battery.</td>
     <td width="50%"><b><a href="#window-snapping">Window snapping</a></b><br>⌃⌥ and an arrow key put the front window into halves, thirds, quarters or sixths.</td>
   </tr>
   <tr>
@@ -40,17 +40,22 @@ To update, choose **Check for Updates…** in Yafie's menu. Yafie installs the n
 
 ## Stay awake with the lid closed
 
-Keeps a MacBook awake with its lid closed while it's plugged in. Unplug it and it sleeps as usual, right away if the lid is shut.
+Keeps a MacBook awake with its lid closed, plugged in or on battery.
 
-**Turn it on:** click Yafie in the menu bar, turn on **Stay Awake with Lid Closed While Plugged In**, and enter your password once. To stay awake only while online, also turn on **Only While Connected to the Internet**.
+**Turn it on:** click Yafie in the menu bar, turn on **Stay Awake with Lid Closed**, and enter your password once. The two options under it narrow it down:
 
-**While it's on**, the Mac won't sleep even when idle, though the display still turns off. Choose **Sleep Now** to sleep anyway. Its menu bar icon shows what it's doing:
+- **Only While Connected to Power** keeps it awake only while it's plugged in. Unplug it and it sleeps as usual, right away if the lid is shut. This one starts out on, so turn it off to stay awake on battery too.
+- **Only While Connected to the Internet** keeps it awake only while it's online.
+
+**While it's on**, the Mac won't sleep even when idle, though the display still turns off. Choose **Sleep Now** to sleep anyway. On battery, it sleeps as usual once the battery is down to 10%. Don't leave it in a bag while it's awake: with the lid closed, it can get hot.
+
+Its menu bar icon shows what it's doing:
 
 | Menu bar icon | Meaning |
 |---|---|
 | Faded outline | Off |
-| Outline | On, but on battery or offline, so it sleeps as usual |
-| Filled in | On and plugged in, so it stays awake |
+| Outline | On, but waiting for power or the internet, or the battery is low, so it sleeps as usual |
+| Filled in | On, so it stays awake |
 | Warning triangle | Needs attention. The menu says what to do. |
 
 <details>

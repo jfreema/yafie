@@ -11,6 +11,7 @@
 - **Mac won't sleep after a crash or power loss.** If macOS crashes or loses power while sleep is off, the setting stays off through the restart until Yafie next starts and turns it back on. Open Yafie, or turn sleep back on by hand (above).
 - **Another app with a closed-lid mode.** Don't use it at the same time as Yafie. Both apps change the same setting.
 - **Sleeps even though you're online.** With **Only While Connected to the Internet** on, Yafie counts the Mac as offline when `https://captive.apple.com` doesn't load for about a minute, for example on a network that blocks it. Turn that option off.
+- **Sleeps on battery.** **Only While Connected to Power** is on, or the battery is at 10% or less.
 - **Two Yafie processes in Activity Monitor.** The one without an icon is the watchdog, which turns sleep back on if the app crashes. It ends by itself when the app quits.
 
 ## Guitar tuner

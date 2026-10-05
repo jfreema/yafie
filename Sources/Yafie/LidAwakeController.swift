@@ -3,21 +3,31 @@ import os
 
 let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "yafie", category: "lid")
 
-/// No lid sleep on AC
+/// No lid sleep, while plugged in or on battery too
 @MainActor
 final class LidAwakeController {
-    enum Status { case off, waitingForPower, waitingForInternet, active, needsSetup, restoreFailed }
+    enum Status: Equatable {
+        case off, waitingForPower, lowBattery, waitingForInternet, active(onBattery: Bool), needsSetup, restoreFailed
+    }
+
+    /// On battery, the Mac sleeps as usual from this charge down, in percent
+    static let lowBattery = 10
 
     var onChange: (() -> Void)?
 
     private(set) var isEnabled = UserDefaults.standard.bool(forKey: Keys.enabled) {
         didSet { UserDefaults.standard.set(isEnabled, forKey: Keys.enabled) }
     }
+    /// Only while plugged in, which is how it started out
+    private(set) var requiresPower = UserDefaults.standard.object(forKey: Keys.requiresPower) as? Bool ?? true {
+        didSet { UserDefaults.standard.set(requiresPower, forKey: Keys.requiresPower) }
+    }
     /// Only while online, too
     private(set) var requiresInternet = UserDefaults.standard.bool(forKey: Keys.requiresInternet) {
         didSet { UserDefaults.standard.set(requiresInternet, forKey: Keys.requiresInternet) }
     }
     private var isOnACPower = PowerSource.isOnACPower
+    private var batteryLevel = PowerSource.batteryLevel
     private lazy var connectivity = ConnectivityMonitor { [weak self] in self?.changed() }
     /// sudo rule missing or broken
     private var needsSetup = false
@@ -48,6 +58,7 @@ final class LidAwakeController {
 
     private enum Keys {
         static let enabled = "enabled"
+        static let requiresPower = "requiresPower"
         static let requiresInternet = "requiresInternet"
         static let ownsSleepDisabled = "ownsSleepDisabled"
     }
@@ -56,14 +67,17 @@ final class LidAwakeController {
         if restoreFailed { return .restoreFailed }
         guard isEnabled else { return .off }
         if needsSetup { return .needsSetup }
-        guard isOnACPower else { return .waitingForPower }
-        return isOffline ? .waitingForInternet : .active
+        if isWaitingForPower { return .waitingForPower }
+        if isBatteryLow { return .lowBattery }
+        return isOffline ? .waitingForInternet : .active(onBattery: !isOnACPower)
     }
 
+    private var isWaitingForPower: Bool { requiresPower && !isOnACPower }
+    private var isBatteryLow: Bool { !isOnACPower && (batteryLevel ?? 100) <= Self.lowBattery }
     private var isOffline: Bool { requiresInternet && !connectivity.isOnline }
 
     private var wantsSleepDisabled: Bool {
-        isEnabled && isOnACPower && !isOffline && !needsSetup && !pausedUntilWake
+        isEnabled && !isWaitingForPower && !isBatteryLow && !isOffline && !needsSetup && !pausedUntilWake
     }
 
     // MARK: Lifecycle
@@ -127,6 +141,11 @@ final class LidAwakeController {
     /// No sudoers rule yet, so turning on asks for a password
     var needsPasswordToEnable: Bool { !FileManager.default.fileExists(atPath: SleepSetting.rulePath) }
 
+    func setRequiresPower(_ required: Bool) {
+        requiresPower = required
+        changed()
+    }
+
     func setRequiresInternet(_ required: Bool) {
         requiresInternet = required
         changed()
@@ -152,8 +171,8 @@ final class LidAwakeController {
 
         let ready = await SleepSetting.isPasswordFree()
         if !ready {
-            let prompt = "Yafie needs your password once, so it can turn lid sleep off "
-                + "while your Mac is plugged in and back on when it isn't."
+            let prompt = "Yafie needs your password once, so it can turn lid sleep off and back on "
+                + "without asking again."
             switch Administrator.run(SleepSetting.installRuleCommand, prompt: prompt) {
             case .done:
                 break
@@ -176,17 +195,22 @@ final class LidAwakeController {
 
     // MARK: Events
 
+    /// Also how the battery running low is noticed, every 30 seconds at most
     private func powerSourceMayHaveChanged() {
+        let wasLow = isBatteryLow
         let onAC = PowerSource.isOnACPower
-        guard onAC != isOnACPower else { return }
+        batteryLevel = PowerSource.batteryLevel
+        let switched = onAC != isOnACPower
         isOnACPower = onAC
-        logger.notice("Now running on \(onAC ? "the power adapter" : "battery", privacy: .public)")
-        changed()
+        if switched { logger.notice("Now running on \(onAC ? "the power adapter" : "battery", privacy: .public)") }
+        if isBatteryLow, !wasLow, isEnabled, !requiresPower { logger.notice("The battery is low") }
+        if switched || isBatteryLow != wasLow { changed() }
     }
 
     private func systemDidWake() {
         pausedUntilWake = false
         isOnACPower = PowerSource.isOnACPower
+        batteryLevel = PowerSource.batteryLevel
         connectivity.recheck()
         changed()
     }
@@ -206,7 +230,7 @@ final class LidAwakeController {
     }
 
     private func changed() {
-        connectivity.isWatching = isEnabled && requiresInternet && isOnACPower
+        connectivity.isWatching = isEnabled && requiresInternet && !isWaitingForPower
         reconcile()
         onChange?()
     }
@@ -239,7 +263,7 @@ final class LidAwakeController {
                 lastWritten = disabled
                 restoreFailed = false  // writes work again
                 if disabled {
-                    logger.notice("Lid sleep is off while plugged in")
+                    logger.notice("Lid sleep is off")
                 } else {
                     ownsSleepDisabled = false
                     logger.notice("Lid sleep is back on")
