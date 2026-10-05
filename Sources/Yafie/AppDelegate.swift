@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let updater = Updater()
     private let snapper = WindowSnapper()
     private let snipper = ScreenSnipper()
+    private let previews = AppPreview()
     private lazy var tuner: TunerWindowController = {
         let tuner = TunerWindowController()
         tuner.onLoudnessChange = { [weak self] in self?.updateIcon() }
@@ -29,6 +30,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let snap: ToggleRow
         let thirds: ToggleRow
         let snapAction: NSMenuItem
+        let preview: ToggleRow
+        let previewAction: NSMenuItem
         let snip: ToggleRow
         let snipAction: NSMenuItem
         let login: ToggleRow
@@ -50,6 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         controller.start()
         snapper.onChange = { [weak self] in self?.refreshMenu() }
         snapper.start()
+        previews.onChange = { [weak self] in self?.refreshMenu() }
+        previews.start()
         snipper.onChange = { [weak self] in self?.refreshMenu() }
         snipper.start()
         updateIcon()
@@ -111,6 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         // The permissions may have changed in System Settings
         snapper.refresh()
+        previews.refresh()
         snipper.refresh()
         menu.removeAllItems()
         let summary = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -144,6 +150,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(snapAction)
 
         menu.addItem(.separator())
+        let preview = ToggleRow("Show App Previews in the Dock") { [weak self] on in self?.setAppPreviews(on) }
+        menu.addItem(viewItem(preview))
+        // While a permission is missing
+        let previewAction = item("Allow App Previews…", #selector(allowAppPreviews))
+        menu.addItem(previewAction)
+
+        menu.addItem(.separator())
         let snip = ToggleRow("Snip the Screen with ⌃⌥P") { [weak self] on in self?.setSnipScreen(on) }
         menu.addItem(viewItem(snip))
         // Allow Screen Snipping…, or why the shortcut didn't take, when the status calls for one
@@ -171,8 +184,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                 action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
 
         openMenu = OpenMenu(summary: summary, stayAwake: stayAwake, online: online, action: action,
-                            snap: snap, thirds: thirds, snapAction: snapAction, snip: snip, snipAction: snipAction,
-                            login: login)
+                            snap: snap, thirds: thirds, snapAction: snapAction, preview: preview,
+                            previewAction: previewAction, snip: snip, snipAction: snipAction, login: login)
         refreshMenu()
     }
 
@@ -221,6 +234,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             break
         }
         menu.snapAction.isHidden = snapper.status != .needsPermission && snapper.status != .shortcutTaken
+
+        menu.preview.isOn = previews.isEnabled
+        menu.previewAction.isHidden = !previews.needsPermission
 
         menu.snip.isOn = snipper.isEnabled
         switch snipper.status {
@@ -273,6 +289,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    private func setAppPreviews(_ on: Bool) {
+        if on, !AXIsProcessTrusted() || !CGPreflightScreenCaptureAccess() {
+            // macOS's permission dialog needs the screen
+            closeMenu { [weak self] in self?.previews.setEnabled(true) }
+        } else {
+            previews.setEnabled(on)
+        }
+    }
+
     private func setSnipScreen(_ on: Bool) {
         if on, !CGPreflightScreenCaptureAccess() {
             // macOS's permission dialog needs the screen
@@ -305,6 +330,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc private func openTuner() { tuner.show() }
     @objc private func allowWindowSnapping() { snapper.openAccessibilitySettings() }
+    @objc private func allowAppPreviews() { previews.openSettings() }
     @objc private func allowScreenSnipping() { snipper.openScreenRecordingSettings() }
     @objc private func sleepNow() { controller.sleepNow() }
     @objc private func finishSetup() { controller.finishSetup() }

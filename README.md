@@ -14,8 +14,11 @@
     <td width="50%"><b><a href="#window-snapping">Window snapping</a></b><br>⌃⌥ and an arrow key put the front window into halves, thirds, quarters or sixths.</td>
   </tr>
   <tr>
+    <td width="50%"><b><a href="#app-preview">App preview</a></b><br>Rest the pointer on an app in the Dock to see its windows, and click the one you want.</td>
     <td width="50%"><b><a href="#screenshot-tool">Screenshot tool</a></b><br>⌃⌥P snips part of the screen to copy, save or mark up.</td>
-    <td width="50%"><b><a href="#guitar-tuner">Guitar tuner</a></b><br>Shows the note you're playing and how sharp or flat it is.</td>
+  </tr>
+  <tr>
+    <td colspan="2"><b><a href="#guitar-tuner">Guitar tuner</a></b><br>Shows the note you're playing and how sharp or flat it is.</td>
   </tr>
 </table>
 
@@ -88,6 +91,24 @@ Each display has two columns, or three on external displays with **Snap to Third
 | ⌃⌥← and ⌃⌥→ | ⌃⌥↓ |
 |---|---|
 | <img src="docs/snapping-columns.svg" width="400" alt="A MacBook screen in two halves, the left one lit up, next to a larger external display in three thirds, the middle one lit up"> | <img src="docs/snapping-cells.svg" width="400" alt="A MacBook screen in four quarters, the top left one lit up, next to a larger external display in six sixths, the top right one lit up"> |
+
+---
+
+## App preview
+
+Rest the pointer on an open app's icon in the Dock to see its windows, then click the one you want. With a regular and a private Chrome window open, for example, you go straight to the right one.
+
+**Turn it on:**
+
+1. Click Yafie in the menu bar and turn on **Show App Previews in the Dock**.
+2. When macOS asks, click **Open System Settings**, or choose **Allow App Previews…** in Yafie's menu. Turn on **Yafie.app** in the **Accessibility** list, as for [window snapping](#window-snapping).
+3. For pictures of the windows, choose **Allow App Previews…** again and turn on **Yafie.app** in the **Screen & System Audio Recording** list, as for the [screenshot tool](#screenshot-tool). Then click **Quit & Reopen**. Without it, the previews show only the windows' titles.
+
+If window snapping and the screenshot tool are already on, Yafie has both permissions, so step 1 is all it takes.
+
+**Use it:** rest the pointer on an open app's icon in the Dock. Its windows appear above the icon, or beside it with the Dock on the side. Click one to bring it to the front. Move the pointer away, or click anywhere else, to close them.
+
+The previews show the app's windows on the current desktop, oldest first, so each keeps its place. Minimized ones are dimmed.
 
 ---
 

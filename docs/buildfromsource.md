@@ -13,7 +13,7 @@ The installer copies Yafie into `/Applications`, hands it to the person installi
 
 ## Signing
 
-Every build is signed with one self-signed certificate, **Yafie Code Signing**. A stable signature means macOS keeps Yafie's permissions (Accessibility for window snapping, Microphone for the tuner) across updates. `./build.sh --pkg` refuses to run without it; other builds fall back to ad hoc signing.
+Every build is signed with one self-signed certificate, **Yafie Code Signing**. A stable signature means macOS keeps Yafie's permissions (Accessibility for window snapping and app previews, Screen Recording for snips and window pictures, Microphone for the tuner) across updates. `./build.sh --pkg` refuses to run without it; other builds fall back to ad hoc signing.
 
 - **First time:** `./Resources/make-signing-identity.sh` creates it in your login keychain. macOS asks for your password to trust it for code signing. The first build then asks to use the key: enter your password and click **Always Allow**.
 - **Back it up:** in Keychain Access, select **Yafie Code Signing** under login → My Certificates, then choose File → Export Items… and save a .p12 with a password. Keep both somewhere safe. A new certificate would look like a new app to macOS, and everyone would have to allow Yafie again.

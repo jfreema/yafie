@@ -27,6 +27,15 @@
 - **A window doesn't fill its column exactly.** Some apps keep a minimum size, and Terminal rounds to whole characters. Yafie centers those on the column and keeps them on the display.
 - **A full-screen window doesn't move.** Yafie leaves full-screen windows alone. Leave full screen first.
 
+## App preview
+
+- **The menu shows Allow App Previews….** Yafie is missing the Accessibility permission, or Screen & System Audio Recording for the pictures. Choose it, and turn on Yafie in the list that opens. After Screen & System Audio Recording, click **Quit & Reopen**.
+- **Titles but no pictures.** Yafie can't record the screen yet. See the item above.
+- **Nothing appears over the Dock.** Check that Yafie is on in **Accessibility**, then turn **Show App Previews in the Dock** off and on.
+- **A window is missing.** Only windows on the current desktop show, plus minimized ones. Full-screen windows, which have desktops of their own, and small panels like palettes don't.
+- **The app's icon, or an old picture, instead of the window.** macOS can't picture minimized windows or a hidden app's windows, so they show the last picture Yafie took, or the app's icon.
+- **macOS asks whether Yafie can bypass the system private window picker.** As with snips, click **Allow**. macOS asks again about once a month.
+
 ## Screenshot tool
 
 - **The menu shows Allow Screen Snipping….** Yafie doesn't have the Screen & System Audio Recording permission. Choose it, turn on Yafie in the list that opens, then click **Quit & Reopen**.

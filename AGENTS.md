@@ -4,7 +4,7 @@ Notes for any coding agent working on Yafie.
 
 ## What Yafie is
 
-A macOS menu bar app with four features: stay awake with the lid closed, window snapping, a screenshot tool and a guitar tuner. It's Swift 6 with SwiftPM, with no Xcode project and no third-party dependencies. It runs on macOS 14 or later, on Apple silicon or Intel. It's an accessory app (`LSUIElement`), with no Dock icon or menu bar except while a snip editor is open. [README.md](README.md) is the user guide.
+A macOS menu bar app with five features: stay awake with the lid closed, window snapping, app previews from the Dock, a screenshot tool and a guitar tuner. It's Swift 6 with SwiftPM, with no Xcode project and no third-party dependencies. It runs on macOS 14 or later, on Apple silicon or Intel. It's an accessory app (`LSUIElement`), with no Dock icon or menu bar except while a snip editor is open. [README.md](README.md) is the user guide.
 
 ## Build and test
 
@@ -20,7 +20,7 @@ swift test             # unit tests (Swift Testing)
 - **Linker warnings about missing search paths** come from the Command Line Tools. Ignore them.
 - **`./build.sh --install` quits and replaces the copy the user is running.** Ask first.
 - **A debug build won't start while the installed Yafie is running.** The second copy hands over to the first and quits, so quit Yafie first. These hooks work in debug builds only: `--tuner`, `--snip-editor <image file>` and `--update-now`.
-- **Logs:** `/usr/bin/log show --last 1h --predicate 'subsystem == "io.github.jfreema.yafie"'`. The categories are `lid`, `snap`, `snip` and `tuner`.
+- **Logs:** `/usr/bin/log show --last 1h --predicate 'subsystem == "io.github.jfreema.yafie"'`. The categories are `lid`, `snap`, `preview`, `snip` and `tuner`.
 
 ## Code
 
@@ -31,6 +31,7 @@ The app is one flat folder, `Sources/Yafie`, and the tests are in `Tests/YafieTe
 | Menu, alerts, launch | `AppDelegate`, `Yafie` (entry point, one copy at a time), `ToggleRow`, `MenuSwitch` |
 | Stay awake | `LidAwakeController`, `SleepSetting` (`pmset` through a sudoers rule), `PowerManager`, `PowerSource`, `Connectivity`, `Watchdog` (a second process that turns sleep back on if Yafie dies) |
 | Window snapping | `WindowSnapper`, `SnapLayout` (pure geometry) |
+| App preview | `AppPreview`, `DockWatcher` (the icon under the pointer), `AppWindows` (windows and their pictures), `PreviewPanel`, `PreviewLayout` (pure geometry) |
 | Screenshot tool | `ScreenSnipper`, `SnipDrawing` (pure drawing and layout), `SnipEditor` |
 | Guitar tuner | `TunerAudio`, `TunerWindow`, `PitchDetector` |
 | Shared | `HotKeys` (every global shortcut), `Updater`, `Shell` |
@@ -40,6 +41,7 @@ Put logic that can be pure, like geometry, drawing and parsing, in pure types wi
 ## Things that bite
 
 - **The main thread runs lid sleep, so never block it.** Accessibility calls run on a queue with a timeout. Core Audio runs in a child process (`--tuner-listen`), because AVAudioEngine can hang for good after an audio device changes.
+- **App Preview reads the Dock through Accessibility.** The Dock selects the icon under the pointer and posts `AXSelectedChildrenChanged` on its list, as DockDoor relies on too. Windows are matched to their pictures with the private `_AXUIElementGetWindow`, found with `dlsym`, since two windows can share a frame and title. Its panel is non-activating and must never take the focus.
 - **Global shortcuts go through `HotKeys`**, which owns Yafie's one Carbon handler. A second handler would take other features' key presses.
 - **⌘Q in the snip editor closes the editors, not Yafie.** While an editor is open, Yafie looks like a regular app, but quitting it would also stop Stay Awake and window snapping. **Quit Yafie** is in the menu, without the shortcut.
 - **A menu item takes its key even when it's disabled.** So the snip editor's single-key shortcuts (R, L, A, H, T, 1 to 4, W) only exist while an editor has the keyboard and no text is being typed (`SnipMenu.setSingleKeys`). Otherwise those letters couldn't be typed in a text or a Save dialog's name.
