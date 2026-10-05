@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 230" width="600" height="230" role="img" aria-label="A MacBook screen in four quarters, the top left one lit up, next to a larger external display in six sixths, the top right one lit up">
+  <rect x="24" y="70" width="210" height="134" rx="9" fill="none" stroke="#8c959f" stroke-width="3"/>
+  <rect x="33" y="79" width="93" height="55" rx="4" fill="#2f81f7" fill-opacity="0.28" stroke="#2f81f7" stroke-width="2"/>
+  <circle cx="42" cy="88" r="2.2" fill="#2f81f7"/>
+  <circle cx="50" cy="88" r="2.2" fill="#2f81f7"/>
+  <circle cx="58" cy="88" r="2.2" fill="#2f81f7"/>
+  <rect x="132" y="79" width="93" height="55" rx="4" fill="#8c959f" fill-opacity="0.10" stroke="#8c959f" stroke-opacity="0.55" stroke-width="1.5"/>
+  <rect x="33" y="140" width="93" height="55" rx="4" fill="#8c959f" fill-opacity="0.10" stroke="#8c959f" stroke-opacity="0.55" stroke-width="1.5"/>
+  <rect x="132" y="140" width="93" height="55" rx="4" fill="#8c959f" fill-opacity="0.10" stroke="#8c959f" stroke-opacity="0.55" stroke-width="1.5"/>
+  <rect x="8" y="206" width="242" height="8" rx="4" fill="#8c959f"/>
+  <rect x="270" y="6" width="318" height="186" rx="9" fill="none" stroke="#8c959f" stroke-width="3"/>
+  <rect x="279" y="15" width="96" height="81" rx="4" fill="#8c959f" fill-opacity="0.10" stroke="#8c959f" stroke-opacity="0.55" stroke-width="1.5"/>
+  <rect x="381" y="15" width="96" height="81" rx="4" fill="#8c959f" fill-opacity="0.10" stroke="#8c959f" stroke-opacity="0.55" stroke-width="1.5"/>
+  <rect x="483" y="15" width="96" height="81" rx="4" fill="#2f81f7" fill-opacity="0.28" stroke="#2f81f7" stroke-width="2"/>
+  <circle cx="492" cy="24" r="2.2" fill="#2f81f7"/>
+  <circle cx="500" cy="24" r="2.2" fill="#2f81f7"/>
+  <circle cx="508" cy="24" r="2.2" fill="#2f81f7"/>
+  <rect x="279" y="102" width="96" height="81" rx="4" fill="#8c959f" fill-opacity="0.10" stroke="#8c959f" stroke-opacity="0.55" stroke-width="1.5"/>
+  <rect x="381" y="102" width="96" height="81" rx="4" fill="#8c959f" fill-opacity="0.10" stroke="#8c959f" stroke-opacity="0.55" stroke-width="1.5"/>
+  <rect x="483" y="102" width="96" height="81" rx="4" fill="#8c959f" fill-opacity="0.10" stroke="#8c959f" stroke-opacity="0.55" stroke-width="1.5"/>
+  <rect x="415" y="193.5" width="28" height="16" rx="2" fill="#8c959f"/>
+  <rect x="377" y="208" width="104" height="6" rx="3" fill="#8c959f"/>
+</svg>

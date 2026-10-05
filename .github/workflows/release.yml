@@ -1,0 +1,114 @@
+name: Release
+
+# Tests, builds, signs and checks Yafie whenever Resources/Info.plist changes on main. When that brings a new version,
+# it publishes it: commits downloads/Yafie.pkg, downloads/latest.json and the README's version line to main, which is
+# where Check for Updates looks. Run it by hand from the Actions tab to try a build without publishing.
+
+on:
+  push:
+    branches: [main]
+    paths: [Resources/Info.plist]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish, if the version is new
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      # The fingerprint behind every grant users have given Yafie. A different certificate would look like a different
+      # app to macOS, so a release signed by anything else stops here. See docs/buildfromsource.md.
+      CERTIFICATE_SHA1: be53c25d8c8e5d9ddd6545ea67cb8cbdf9710a90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # so Publish can rebase onto anything pushed meanwhile
+
+      - name: Read the version
+        id: version
+        run: |
+          version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)"
+          # Nothing is published before the first release
+          published="$(plutil -extract version raw -o - downloads/latest.json 2>/dev/null || echo none)"
+          echo "Info.plist says $version, downloads/latest.json says $published"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" != "$published" ]]; then echo "new=true" >> "$GITHUB_OUTPUT"; else echo "new=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Test
+        run: |
+          swift --version
+          swift test
+
+      - name: Import the signing identity
+        env:
+          SIGNING_P12: ${{ secrets.YAFIE_SIGNING_P12 }}
+          SIGNING_PASSWORD: ${{ secrets.YAFIE_SIGNING_PASSWORD }}
+        run: |
+          if [[ -z "$SIGNING_P12" || -z "$SIGNING_PASSWORD" ]]; then
+            echo "::error::Add the YAFIE_SIGNING_P12 and YAFIE_SIGNING_PASSWORD secrets. See docs/buildfromsource.md."
+            exit 1
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password="$(uuidgen)"
+          echo "$SIGNING_P12" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          # Any tool may use the key, since this keychain only lives as long as the job
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$SIGNING_PASSWORD" -A
+          rm "$RUNNER_TEMP/signing.p12"
+          # Uses it without asking: nobody is here to answer
+          security set-key-partition-list -S apple-tool:,apple:,codesign:,unsigned: -s -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          # Not trusted here (macOS won't let a job trust a certificate), so build.sh signs through the signing API
+          security find-identity -p codesigning "$keychain"
+
+      - name: Build and sign
+        run: ./build.sh --pkg
+
+      - name: Check it as Check for Updates will
+        run: |
+          expanded="$RUNNER_TEMP/expanded"
+          pkgutil --expand-full downloads/Yafie.pkg "$expanded"
+          app="$(find "$expanded" -name Yafie.app -maxdepth 3 | head -1)"
+          plist="$app/Contents/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$plist")" = "${{ steps.version.outputs.version }}"
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$plist")" = io.github.jfreema.yafie
+          codesign --verify --strict "$app"
+          codesign -d -r- "$app" 2>&1 | grep -q "certificate leaf = H\"$CERTIFICATE_SHA1\"" \
+            || { echo "::error::Signed with a different certificate than every earlier release"; exit 1; }
+          test "$(plutil -extract sha256 raw -o - downloads/latest.json)" = "$(shasum -a 256 downloads/Yafie.pkg | cut -d' ' -f1)"
+          echo "Yafie ${{ steps.version.outputs.version }} for $(lipo -archs "$app/Contents/MacOS/Yafie") checks out"
+
+      - name: Keep the installer with this run
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yafie-${{ steps.version.outputs.version }}
+          path: |
+            downloads/Yafie.pkg
+            downloads/latest.json
+
+      - name: Publish
+        if: steps.version.outputs.new == 'true' && (github.event_name == 'push' || inputs.publish)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add downloads/Yafie.pkg downloads/latest.json README.md
+          git commit -m "Release ${{ steps.version.outputs.version }}"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Remove the signing identity
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true

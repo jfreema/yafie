@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:jappy}",
+            "name": "Debug Yafie",
+            "target": "Yafie",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug Yafie"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:jappy}",
+            "name": "Release Yafie",
+            "target": "Yafie",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release Yafie"
+        }
+    ]
+}

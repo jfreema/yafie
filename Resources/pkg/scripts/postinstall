@@ -1,0 +1,19 @@
+#!/bin/sh
+# $2 is the folder Installer put the app in
+app="$2/Yafie.app"
+user=$(/usr/bin/stat -f%Su /dev/console)
+
+# Installer then offers to move a downloaded package to the Trash, which macOS
+# doesn't let it do. It skips the offer for a read-only package, so mark ours.
+home=$(/usr/bin/dscl . -read "/Users/$user" NFSHomeDirectory 2>/dev/null | /usr/bin/awk '{print $2}')
+case "$1" in "$home/Downloads/"*) /bin/chmod a-w "$1" ;; esac
+
+if [ "$(/usr/bin/id -u)" -eq 0 ] && [ -n "$user" ] && [ "$user" != "root" ]; then
+    # Owned like a dragged-in app, so Check for Updates can replace it
+    /usr/sbin/chown -R "$user":admin "$app"
+    # Open it for whoever is at the screen, not root
+    /bin/launchctl asuser "$(/usr/bin/id -u "$user")" /usr/bin/sudo -u "$user" /usr/bin/open "$app"
+else
+    /usr/bin/open "$app"
+fi
+exit 0

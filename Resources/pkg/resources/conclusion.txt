@@ -1,0 +1,3 @@
+Yafie is installed and running.
+
+Look for Yafie's icon in the menu bar at the top of your screen. Click it to turn on Stay Awake with Lid Closed While Plugged In, and Open at Login.
