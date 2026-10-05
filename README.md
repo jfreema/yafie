@@ -14,7 +14,7 @@
     <td width="50%"><b><a href="#window-snapping">Window snapping</a></b><br>⌃⌥ and an arrow key put the front window into halves, thirds, quarters or sixths.</td>
   </tr>
   <tr>
-    <td width="50%"><b><a href="#screen-snips">Screen snips</a></b><br>⌃⌥P snips part of the screen to copy, save or mark up.</td>
+    <td width="50%"><b><a href="#screenshot-tool">Screenshot tool</a></b><br>⌃⌥P snips part of the screen to copy, save or mark up.</td>
     <td width="50%"><b><a href="#guitar-tuner">Guitar tuner</a></b><br>Shows the note you're playing and how sharp or flat it is.</td>
   </tr>
 </table>
@@ -91,7 +91,7 @@ Each display has two columns, or three on external displays with **Snap to Third
 
 ---
 
-## Screen snips
+## Screenshot tool
 
 Press ⌃⌥P to snip part of the screen, then copy it, save it, or mark it up with boxes, lines, arrows, highlights and text.
 

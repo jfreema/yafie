@@ -4,7 +4,7 @@ Notes for any coding agent working on Yafie.
 
 ## What Yafie is
 
-A macOS menu bar app with four features: stay awake with the lid closed, window snapping, screen snips and a guitar tuner. It's Swift 6 with SwiftPM, with no Xcode project and no third-party dependencies. It runs on macOS 14 or later, on Apple silicon or Intel. It's an accessory app (`LSUIElement`), with no Dock icon or menu bar except while a snip editor is open. [README.md](README.md) is the user guide.
+A macOS menu bar app with four features: stay awake with the lid closed, window snapping, a screenshot tool and a guitar tuner. It's Swift 6 with SwiftPM, with no Xcode project and no third-party dependencies. It runs on macOS 14 or later, on Apple silicon or Intel. It's an accessory app (`LSUIElement`), with no Dock icon or menu bar except while a snip editor is open. [README.md](README.md) is the user guide.
 
 ## Build and test
 
@@ -31,7 +31,7 @@ The app is one flat folder, `Sources/Yafie`, and the tests are in `Tests/YafieTe
 | Menu, alerts, launch | `AppDelegate`, `Yafie` (entry point, one copy at a time), `ToggleRow`, `MenuSwitch` |
 | Stay awake | `LidAwakeController`, `SleepSetting` (`pmset` through a sudoers rule), `PowerManager`, `PowerSource`, `Connectivity`, `Watchdog` (a second process that turns sleep back on if Yafie dies) |
 | Window snapping | `WindowSnapper`, `SnapLayout` (pure geometry) |
-| Screen snips | `ScreenSnipper`, `SnipDrawing` (pure drawing and layout), `SnipEditor` |
+| Screenshot tool | `ScreenSnipper`, `SnipDrawing` (pure drawing and layout), `SnipEditor` |
 | Guitar tuner | `TunerAudio`, `TunerWindow`, `PitchDetector` |
 | Shared | `HotKeys` (every global shortcut), `Updater`, `Shell` |
 
@@ -55,7 +55,7 @@ Every build is signed with one self-signed certificate, **Yafie Code Signing**. 
 
 Every update to the published package raises the version in `Resources/Info.plist` (`CFBundleShortVersionString`):
 
-- **A new feature**, one that gets its own section in the README, like screen snips was: the next 0.x.0, with the last number back to 0. For example, 0.8.3 → 0.9.0.
+- **A new feature**, one that gets its own section in the README, like the screenshot tool was: the next 0.x.0, with the last number back to 0. For example, 0.8.3 → 0.9.0.
 - **Anything else**, including fixes and additions to an existing feature, like a new tool in the snip editor: 0.0.1 more. For example, 0.8.0 → 0.8.1.
 
 **Raise it as part of every change**, without being asked. Count from the published version in `downloads/latest.json` (none before the first release), not from `Info.plist`. Changes that go out together share one raise, and if any of them is a new feature, that raise is to the next 0.x.0.
