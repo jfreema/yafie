@@ -203,7 +203,7 @@ struct LoudnessMeter {
 // MARK: Views
 
 struct TunerView: View {
-    static let size = CGSize(width: 320, height: 200)
+    static let size = CGSize(width: 480, height: 300)
 
     let model: TunerModel
     let retry: () -> Void
@@ -228,7 +228,7 @@ struct TunerView: View {
                             detail: message, button: "Try Again", action: retry)
             }
         }
-        .padding(20)
+        .padding(30)
         .frame(width: Self.size.width, height: Self.size.height)
     }
 }
@@ -238,22 +238,22 @@ private struct ReadingView: View {
     let isStarting: Bool
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 15) {
             Group {
                 if let reading {
                     NoteName(note: reading.note)
                         .foregroundStyle(reading.isInTune ? Color.green : Color.primary)
                 } else {
                     Text(isStarting ? "Waiting for the microphone…" : "Play a string")
-                        .font(.title3)
+                        .font(.system(size: 22))
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(height: 76)
+            .frame(height: 114)
             CentsMeter(cents: reading?.note.cents, isInTune: reading?.isInTune == true)
-                .frame(height: 46)
+                .frame(height: 69)
             Text(caption)
-                .font(.callout)
+                .font(.system(size: 18))
                 .monospacedDigit()
                 .foregroundStyle(reading?.isInTune == true ? Color.green : Color.secondary)
         }
@@ -289,13 +289,13 @@ private struct NoteName: View {
     let note: Note
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 2) {
+        HStack(alignment: .firstTextBaseline, spacing: 3) {
             Text(note.name)
-                .font(.system(size: 64, weight: .semibold, design: .rounded))
+                .font(.system(size: 96, weight: .semibold, design: .rounded))
             Text(verbatim: "\(note.octave)")
-                .font(.system(size: 26, weight: .semibold, design: .rounded))
+                .font(.system(size: 39, weight: .semibold, design: .rounded))
                 .foregroundStyle(.secondary)
-                .baselineOffset(-10)
+                .baselineOffset(-15)
         }
     }
 }
@@ -306,8 +306,8 @@ private struct CentsMeter: View {
     let isInTune: Bool
 
     /// Room for ♭ and ♯ at the ends
-    private static let inset: CGFloat = 22
-    private static let midline: CGFloat = 14
+    private static let inset: CGFloat = 33
+    private static let midline: CGFloat = 21
 
     var body: some View {
         GeometryReader { geometry in
@@ -316,29 +316,30 @@ private struct CentsMeter: View {
                 let left = Self.x(-TunerModel.Reading.tolerance, in: size.width)
                 let right = Self.x(TunerModel.Reading.tolerance, in: size.width)
                 context.fill(Path(roundedRect: CGRect(x: left, y: 0, width: right - left, height: 2 * Self.midline),
-                                  cornerRadius: 3), with: .color(.green.opacity(0.2)))
+                                  cornerRadius: 4.5), with: .color(.green.opacity(0.2)))
                 for step in stride(from: -50, through: 50, by: 5) {
-                    let length: CGFloat = step == 0 ? 28 : step % 25 == 0 ? 18 : 10
+                    let length: CGFloat = step == 0 ? 42 : step % 25 == 0 ? 27 : 15
                     let x = Self.x(Double(step), in: size.width)
                     var tick = Path()
                     tick.move(to: CGPoint(x: x, y: Self.midline - length / 2))
                     tick.addLine(to: CGPoint(x: x, y: Self.midline + length / 2))
-                    context.stroke(tick, with: .style(.secondary), lineWidth: step == 0 ? 2 : 1)
+                    context.stroke(tick, with: .style(.secondary), lineWidth: step == 0 ? 3 : 1.5)
                 }
                 for step in [-50, -25, 0, 25, 50] {
                     let label = step > 0 ? "+\(step)" : step < 0 ? "−\(-step)" : "0"
-                    context.draw(Text(label).font(.caption2).foregroundStyle(.secondary),
-                                 at: CGPoint(x: Self.x(Double(step), in: size.width), y: 2 * Self.midline + 10))
+                    context.draw(Text(label).font(.system(size: 15)).foregroundStyle(.secondary),
+                                 at: CGPoint(x: Self.x(Double(step), in: size.width), y: 2 * Self.midline + 15))
                 }
-                context.draw(Text("♭").font(.title3).foregroundStyle(.secondary), at: CGPoint(x: 8, y: Self.midline))
-                context.draw(Text("♯").font(.title3).foregroundStyle(.secondary),
-                             at: CGPoint(x: size.width - 8, y: Self.midline))
+                context.draw(Text("♭").font(.system(size: 22)).foregroundStyle(.secondary),
+                             at: CGPoint(x: 12, y: Self.midline))
+                context.draw(Text("♯").font(.system(size: 22)).foregroundStyle(.secondary),
+                             at: CGPoint(x: size.width - 12, y: Self.midline))
             }
             .overlay(alignment: .topLeading) {
                 if let cents {
                     Capsule()
                         .fill(isInTune ? Color.green : Color.primary)
-                        .frame(width: 4, height: 2 * Self.midline + 4)
+                        .frame(width: 6, height: 2 * Self.midline + 6)
                         .position(x: Self.x(cents, in: width), y: Self.midline)
                         .animation(.easeOut(duration: 0.1), value: cents)
                 }
@@ -359,19 +360,20 @@ private struct MessageView: View {
     let action: () -> Void
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             Image(systemName: symbol)
-                .font(.system(size: 28))
+                .font(.system(size: 42))
                 .foregroundStyle(.secondary)
             Text(title)
-                .font(.headline)
+                .font(.system(size: 20, weight: .bold))
             Text(detail)
-                .font(.callout)
+                .font(.system(size: 18))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
             Button(button, action: action)
-                .padding(.top, 4)
+                .controlSize(.large)
+                .padding(.top, 6)
         }
     }
 }

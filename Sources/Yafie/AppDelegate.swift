@@ -347,7 +347,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let image = loudness.icon
             image?.accessibilityDescription = "Tuner open, \(loudness.spoken)"
             button.image = image
-            button.appearsDisabled = false
             button.toolTip = "Yafie: Tuner is open"
             return
         }
@@ -355,9 +354,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let image = status.icon
         image?.isTemplate = true  // drawn in the menu bar's color
         image?.accessibilityDescription = status.summary
+        // At full strength like the menu bar's other icons, even while off
         button.image = image
-        // Dimmed but still clickable
-        button.appearsDisabled = status == .off
         button.toolTip = "Yafie: \(status.summary)"
     }
 

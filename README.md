@@ -53,8 +53,7 @@ Its menu bar icon shows what it's doing:
 
 | Menu bar icon | Meaning |
 |---|---|
-| Faded outline | Off |
-| Outline | On, but waiting for power or the internet, or the battery is low, so it sleeps as usual |
+| Outline | Off, or on but waiting for power or the internet, or the battery is low, so it sleeps as usual |
 | Filled in | On, so it stays awake |
 | Warning triangle | Needs attention. The menu says what to do. |
 
