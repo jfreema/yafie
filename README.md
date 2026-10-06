@@ -10,15 +10,15 @@
 
 <table>
   <tr>
-    <td width="50%"><b><a href="#stay-awake-with-the-lid-closed">Stay awake with the lid closed</a></b><br>Keeps a MacBook running with its lid shut, plugged in or on battery.</td>
+    <td width="50%"><b><a href="#app-preview">App preview</a></b><br>Rest the pointer on an app in the Dock to see its windows, and click the one you want.</td>
     <td width="50%"><b><a href="#window-snapping">Window snapping</a></b><br>⌃⌥ and an arrow key put the front window into halves, thirds, quarters or sixths.</td>
   </tr>
   <tr>
-    <td width="50%"><b><a href="#app-preview">App preview</a></b><br>Rest the pointer on an app in the Dock to see its windows, and click the one you want.</td>
     <td width="50%"><b><a href="#screenshot-tool">Screenshot tool</a></b><br>⌃⌥P snips part of the screen to copy, save or mark up.</td>
+    <td width="50%"><b><a href="#guitar-tuner">Guitar tuner</a></b><br>Shows the note you're playing and how sharp or flat it is.</td>
   </tr>
   <tr>
-    <td colspan="2"><b><a href="#guitar-tuner">Guitar tuner</a></b><br>Shows the note you're playing and how sharp or flat it is.</td>
+    <td colspan="2"><b><a href="#stay-awake-with-the-lid-closed">Stay awake with the lid closed</a></b><br>Keeps a MacBook running with its lid shut, plugged in or on battery.</td>
   </tr>
 </table>
 
@@ -38,35 +38,21 @@ To update, choose **Check for Updates…** in Yafie's menu. Yafie installs the n
 
 ---
 
-## Stay awake with the lid closed
+## App preview
 
-Keeps a MacBook awake with its lid closed, plugged in or on battery.
+Rest the pointer on an open app's icon in the Dock to see its windows, then click the one you want. With a regular and a private Chrome window open, for example, you go straight to the right one.
 
-**Turn it on:** click Yafie in the menu bar, turn on **Stay Awake with Lid Closed**, and enter your password once. The two options under it narrow it down:
+**Turn it on:**
 
-- **Only While Connected to Power** keeps it awake only while it's plugged in. Unplug it and it sleeps as usual, right away if the lid is shut. This one starts out on, so turn it off to stay awake on battery too.
-- **Only While Connected to the Internet** keeps it awake only while it's online.
+1. Click Yafie in the menu bar and turn on **Show App Previews in the Dock**.
+2. When macOS asks, click **Open System Settings**, or choose **Allow App Previews…** in Yafie's menu. Turn on **Yafie.app** in the **Accessibility** list, as for [window snapping](#window-snapping).
+3. For pictures of the windows, choose **Allow App Previews…** again and turn on **Yafie.app** in the **Screen & System Audio Recording** list, as for the [screenshot tool](#screenshot-tool). Then click **Quit & Reopen**. Without it, the previews show only the windows' titles.
 
-**While it's on**, the Mac won't sleep even when idle, though the display still turns off. Choose **Sleep Now** to sleep anyway. On battery, it sleeps as usual once the battery is down to 10%. Don't leave it in a bag while it's awake: with the lid closed, it can get hot.
+If window snapping and the screenshot tool are already on, Yafie has both permissions, so step 1 is all it takes.
 
-Its menu bar icon shows what it's doing:
+**Use it:** rest the pointer on an open app's icon in the Dock. Its windows appear above the icon, or beside it with the Dock on the side. Click one to bring it to the front. Move the pointer away, or click anywhere else, to close them.
 
-| Menu bar icon | Meaning |
-|---|---|
-| Outline | Off, or on but waiting for power or the internet, or the battery is low, so it sleeps as usual |
-| Filled in | On, so it stays awake |
-| Warning triangle | Needs attention. The menu says what to do. |
-
-<details>
-<summary>How it works</summary>
-
-Yafie turns sleep off with `pmset disablesleep 1` and back on with `pmset disablesleep 0`. If the lid is closed at that point, it also puts the Mac to sleep, unless an external display is in use. The one-time password adds `/etc/sudoers.d/yafie`, which lets your account run only those two commands without a password.
-
-Online means a Wi-Fi, Ethernet or cellular connection (a VPN alone doesn't count) where `captive.apple.com` loads. Yafie checks once a minute.
-
-If Yafie quits or crashes, sleep comes back on within a second.
-
-</details>
+The previews show the app's windows on the current desktop, oldest first, so each keeps its place. Minimized ones are dimmed.
 
 ---
 
@@ -95,24 +81,6 @@ Each display has two columns, or three on external displays with **Snap to Third
 | ⌃⌥← and ⌃⌥→ | ⌃⌥↓ |
 |---|---|
 | <img src="docs/snapping-columns.svg" width="400" alt="A MacBook screen in two halves, the left one lit up, next to a larger external display in three thirds, the middle one lit up"> | <img src="docs/snapping-cells.svg" width="400" alt="A MacBook screen in four quarters, the top left one lit up, next to a larger external display in six sixths, the top right one lit up"> |
-
----
-
-## App preview
-
-Rest the pointer on an open app's icon in the Dock to see its windows, then click the one you want. With a regular and a private Chrome window open, for example, you go straight to the right one.
-
-**Turn it on:**
-
-1. Click Yafie in the menu bar and turn on **Show App Previews in the Dock**.
-2. When macOS asks, click **Open System Settings**, or choose **Allow App Previews…** in Yafie's menu. Turn on **Yafie.app** in the **Accessibility** list, as for [window snapping](#window-snapping).
-3. For pictures of the windows, choose **Allow App Previews…** again and turn on **Yafie.app** in the **Screen & System Audio Recording** list, as for the [screenshot tool](#screenshot-tool). Then click **Quit & Reopen**. Without it, the previews show only the windows' titles.
-
-If window snapping and the screenshot tool are already on, Yafie has both permissions, so step 1 is all it takes.
-
-**Use it:** rest the pointer on an open app's icon in the Dock. Its windows appear above the icon, or beside it with the Dock on the side. Click one to bring it to the front. Move the pointer away, or click anywhere else, to close them.
-
-The previews show the app's windows on the current desktop, oldest first, so each keeps its place. Minimized ones are dimmed.
 
 ---
 
@@ -159,6 +127,38 @@ Shows the note you're playing and how sharp or flat you are, and says **In tune*
 <img src="docs/tuner.png" width="300" alt="The tuner showing B2, 22 cents sharp, at 125.1 Hz">
 
 It uses the input chosen in **System Settings → Sound → Input**, unless that's a Bluetooth or virtual input. Then it uses the Mac's own microphone, since opening a Bluetooth headset's microphone can make it suddenly much louder. On an audio interface, it uses the louder of inputs 1 and 2. It only ever listens and never plays sound.
+
+---
+
+## Stay awake with the lid closed
+
+Keeps a MacBook awake with its lid closed, plugged in or on battery.
+
+**Turn it on:** click Yafie in the menu bar, turn on **Stay Awake with Lid Closed**, and enter your password once. The two options under it narrow it down:
+
+- **Only While Connected to Power** keeps it awake only while it's plugged in. Unplug it and it sleeps as usual, right away if the lid is shut. This one starts out on, so turn it off to stay awake on battery too.
+- **Only While Connected to the Internet** keeps it awake only while it's online.
+
+**While it's on**, the Mac won't sleep even when idle, though the display still turns off. Choose **Sleep Now** to sleep anyway. On battery, it sleeps as usual once the battery is down to 10%. Don't leave it in a bag while it's awake: with the lid closed, it can get hot.
+
+Its menu bar icon shows what it's doing:
+
+| Menu bar icon | Meaning |
+|---|---|
+| Outline | Off, or on but waiting for power or the internet, or the battery is low, so it sleeps as usual |
+| Filled in | On, so it stays awake |
+| Warning triangle | Needs attention. The menu says what to do. |
+
+<details>
+<summary>How it works</summary>
+
+Yafie turns sleep off with `pmset disablesleep 1` and back on with `pmset disablesleep 0`. If the lid is closed at that point, it also puts the Mac to sleep, unless an external display is in use. The one-time password adds `/etc/sudoers.d/yafie`, which lets your account run only those two commands without a password.
+
+Online means a Wi-Fi, Ethernet or cellular connection (a VPN alone doesn't count) where `captive.apple.com` loads. Yafie checks once a minute.
+
+If Yafie quits or crashes, sleep comes back on within a second.
+
+</details>
 
 ---
 

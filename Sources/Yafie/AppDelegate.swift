@@ -121,6 +121,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         snipper.refresh()
         menu.removeAllItems()
 
+        menu.addItem(.sectionHeader(title: "App Preview"))
+        let preview = ToggleRow("Show App Previews in the Dock") { [weak self] on in self?.setAppPreviews(on) }
+        menu.addItem(viewItem(preview))
+        // While a permission is missing
+        let previewAction = item("Allow App Previews…", #selector(allowAppPreviews))
+        menu.addItem(previewAction)
+
+        menu.addItem(.separator())
+        menu.addItem(.sectionHeader(title: "Windows"))
+        let snap = ToggleRow("Snap Windows with ⌃⌥ Arrow Keys") { [weak self] on in self?.setSnapWindows(on) }
+        let thirds = ToggleRow("Snap to Thirds on External Displays", indented: true) { [weak self] on in
+            self?.snapper.setUsesThirds(on)
+        }
+        menu.addItem(viewItem(snap))
+        menu.addItem(viewItem(thirds))
+        // Allow Window Snapping…, or why the shortcut didn't take, when the status calls for one
+        let snapAction = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        snapAction.target = self
+        menu.addItem(snapAction)
+
+        menu.addItem(.separator())
+        menu.addItem(.sectionHeader(title: "Tools"))
+        let snip = ToggleRow("Snip the Screen with ⌃⌥P") { [weak self] on in self?.setSnipScreen(on) }
+        menu.addItem(viewItem(snip))
+        // Allow Screen Snipping…, or why the shortcut didn't take, when the status calls for one
+        let snipAction = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        snipAction.target = self
+        menu.addItem(snipAction)
+        menu.addItem(item("Guitar Tuner…", #selector(openTuner)))
+
+        menu.addItem(.separator())
         menu.addItem(.sectionHeader(title: "Stay Awake"))
         // What it's doing now, which the menu bar icon shows too
         let summary = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -140,34 +171,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let action = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         action.target = self
         menu.addItem(action)
-
-        menu.addItem(.separator())
-        menu.addItem(.sectionHeader(title: "Windows"))
-        let snap = ToggleRow("Snap Windows with ⌃⌥ Arrow Keys") { [weak self] on in self?.setSnapWindows(on) }
-        let thirds = ToggleRow("Snap to Thirds on External Displays", indented: true) { [weak self] on in
-            self?.snapper.setUsesThirds(on)
-        }
-        menu.addItem(viewItem(snap))
-        menu.addItem(viewItem(thirds))
-        // Allow Window Snapping…, or why the shortcut didn't take, when the status calls for one
-        let snapAction = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-        snapAction.target = self
-        menu.addItem(snapAction)
-        let preview = ToggleRow("Show App Previews in the Dock") { [weak self] on in self?.setAppPreviews(on) }
-        menu.addItem(viewItem(preview))
-        // While a permission is missing
-        let previewAction = item("Allow App Previews…", #selector(allowAppPreviews))
-        menu.addItem(previewAction)
-
-        menu.addItem(.separator())
-        menu.addItem(.sectionHeader(title: "Tools"))
-        let snip = ToggleRow("Snip the Screen with ⌃⌥P") { [weak self] on in self?.setSnipScreen(on) }
-        menu.addItem(viewItem(snip))
-        // Allow Screen Snipping…, or why the shortcut didn't take, when the status calls for one
-        let snipAction = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-        snipAction.target = self
-        menu.addItem(snipAction)
-        menu.addItem(item("Guitar Tuner…", #selector(openTuner)))
 
         // Yafie itself
         menu.addItem(.separator())
