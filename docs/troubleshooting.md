@@ -41,7 +41,7 @@
 
 - **The menu shows Allow Screen Snipping….** Yafie doesn't have the Screen & System Audio Recording permission. Choose it, turn on Yafie in the list that opens, then click **Quit & Reopen**.
 - **Still shows Allow Screen Snipping… after you allowed it.** macOS only tells Yafie when it starts. Quit Yafie and open it again.
-- **Nothing seems to happen when you turn on Snip the Screen.** macOS adds Yafie to its Screen & System Audio Recording list, switched off, without asking. Choose **Allow Screen Snipping…** in Yafie's menu to get there. See [Screenshot tool](../README.md#screenshot-tool).
+- **Nothing seems to happen when you turn on Snipping Tool.** macOS adds Yafie to its Screen & System Audio Recording list, switched off, without asking. Choose **Allow Screen Snipping…** in Yafie's menu to get there. See [Screenshot tool](../README.md#screenshot-tool).
 - **The menu vanished on your first snip.** macOS asked whether Yafie can bypass the system private window picker, which closes the menu. Click **Allow**, then snip again.
 - **macOS asks every month whether Yafie can record the screen.** Expected on macOS 15 and later, for every app that takes screenshots. Click **Allow**. If the snip you were taking comes out wrong, take it again.
 - **"Another app is using ⌃⌥P."** Another app has the same shortcut. Quit it or change its shortcut, then turn snipping off and on.

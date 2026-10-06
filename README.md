@@ -90,7 +90,7 @@ Press ⌃⌥P to snip part of the screen, then copy it, save it, or mark it up w
 
 **Turn it on:**
 
-1. Click Yafie in the menu bar and turn on **Snip the Screen with ⌃⌥P**. Nothing appears yet: macOS just adds Yafie to its list, switched off.
+1. Click Yafie in the menu bar and turn on **Snipping Tool with ⌃⌥P**. Nothing appears yet: macOS just adds Yafie to its list, switched off.
 2. Choose **Allow Screen Snipping…** in Yafie's menu, then turn on **Yafie.app** and enter your password or use Touch ID.
 
    | Find the **Screen & System Audio Recording** list | Turn on **Yafie.app** |

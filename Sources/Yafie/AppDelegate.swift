@@ -142,13 +142,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(snapAction)
 
         menu.addItem(.separator())
-        menu.addItem(.sectionHeader(title: "Tools"))
-        let snip = ToggleRow("Snip the Screen with ⌃⌥P") { [weak self] on in self?.setSnipScreen(on) }
+        menu.addItem(.sectionHeader(title: "Screenshots"))
+        let snip = ToggleRow("Snipping Tool with ⌃⌥P") { [weak self] on in self?.setSnipScreen(on) }
         menu.addItem(viewItem(snip))
         // Allow Screen Snipping…, or why the shortcut didn't take, when the status calls for one
         let snipAction = NSMenuItem(title: "", action: nil, keyEquivalent: "")
         snipAction.target = self
         menu.addItem(snipAction)
+
+        menu.addItem(.separator())
+        menu.addItem(.sectionHeader(title: "Tools"))
         menu.addItem(item("Guitar Tuner…", #selector(openTuner)))
 
         menu.addItem(.separator())
