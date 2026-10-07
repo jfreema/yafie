@@ -140,7 +140,8 @@ Tap out a beat on the trackpad, with a metronome, and loop a bar or 4 bars of it
 **Use it:** choose **Drum Machine…** in Yafie's menu. The trackpad is the kit: tap its top left for the snare, its top right for the kick, and anywhere along the bottom for a hi-hat. Taps play the drums while the drum machine is the front window and the pointer is over its pads. You can also click the pads.
 
 - **Play** starts the metronome, and **Stop** stops it. Space does both. Set **Tempo** from 40 to 240 beats a minute, or turn **Metronome** off.
-- **Record** records what you play for one pass of the **Loop**, a bar or 4 bars, then plays it over and over. Your hits snap to the nearest sixteenth note. From a stop, a bar's count-in comes first. Record again to add more, or **Clear** to start over.
+- **Record** records what you play for one pass of the **Loop**, a bar or 4 bars, then plays it over and over. From a stop, a bar's count-in comes first. Record again to add more, or **Clear** to start over.
+- **Quantize** snaps hits as they're recorded to the nearest quarter (1/4), eighth (1/8) or sixteenth note (1/16), which starts out chosen. **None** keeps them where you played them.
 
 Bluetooth headphones play everything a moment late, which makes it hard to play along. Use wired ones or the Mac's speakers.
 

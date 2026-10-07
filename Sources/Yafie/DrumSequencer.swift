@@ -32,14 +32,32 @@ enum DrumSound: Int, CaseIterable, Sendable {
     case kick, snare, hiHat, click, accent
 }
 
-/// A hit in the loop: which drum, and which sixteenth note of the loop
+/// A hit in the loop: which drum, and when, in ticks from the loop's start
 struct DrumNote: Hashable, Sendable {
     var pad: DrumPad
-    var step: Int
+    var tick: Int
 }
 
-/// The drum machine's clock: the metronome, and a loop of a bar or four, counted in sixteenth notes. Pure, so it's
-/// tested. The player's audio thread moves it on a buffer at a time.
+/// How recorded hits snap to the beat: to the nearest quarter, eighth or sixteenth note, or not at all
+enum DrumQuantize: String, CaseIterable, Sendable {
+    case none, quarter = "1/4", eighth = "1/8", sixteenth = "1/16"
+
+    /// The grid, in ticks. Nil leaves hits where they were played, to the nearest tick.
+    var ticks: Int? {
+        switch self {
+        case .none: nil
+        case .quarter: DrumSequencer.ticksPerBeat
+        case .eighth: DrumSequencer.ticksPerBeat / 2
+        case .sixteenth: DrumSequencer.ticksPerBeat / 4
+        }
+    }
+
+    var name: String { self == .none ? "None" : rawValue }
+}
+
+/// The drum machine's clock: the metronome, and a loop of a bar or four, counted in ticks, 96 to a beat, as MIDI
+/// sequencers count. That's fine enough to keep a hit where it was played. Pure, so it's tested. The player's audio
+/// thread moves it on a buffer at a time.
 struct DrumSequencer {
     /// A sound to start, so many frames into the buffer
     struct Event: Equatable, Sendable {
@@ -61,8 +79,9 @@ struct DrumSequencer {
         case countIn = "count", recording = "record", playing = "play"
     }
 
-    static let stepsPerBeat = 4
-    static let stepsPerBar = 16
+    static let ticksPerBeat = 96
+    static let beatsPerBar = 4
+    static let ticksPerBar = beatsPerBar * ticksPerBeat
     static let tempos: ClosedRange<Double> = 40...240
     private static let pads = DrumPad.allCases
 
@@ -72,38 +91,40 @@ struct DrumSequencer {
         didSet {
             tempo = min(max(tempo, Self.tempos.lowerBound), Self.tempos.upperBound)
             // The clock keeps its place
-            origin += Double(frames * Self.stepsPerBeat) * oldValue / (sampleRate * 60)
+            origin += Double(frames * Self.ticksPerBeat) * oldValue / (sampleRate * 60)
             frames = 0
         }
     }
     var isMetronomeOn = true
+    /// For hits recorded from now on
+    var quantize = DrumQuantize.sixteenth
     /// 1 or 4
     private(set) var bars = 1
     private(set) var pattern: Set<DrumNote> = []
     private(set) var isPlaying = false
-    /// Where the clock was, in sixteenths, when it started or last changed tempo, and the frames since. Counting whole
-    /// frames keeps it exact, where adding up each buffer's share of a sixteenth would drift.
+    /// Where the clock was, in ticks, when it started or last changed tempo, and the frames since. Counting whole
+    /// frames keeps it exact, where adding up each buffer's share of a tick would drift.
     private var origin: Double = 0
     private var frames = 0
-    /// The next sixteenth to sound
+    /// The next tick to sound
     private var next = 0
     /// One pass round the loop, being recorded
     private var recording: Range<Int>?
-    /// Hits just played live and recorded at a step still to come, so the loop doesn't play them a second time
-    private var heardLive: [(pad: DrumPad, step: Int)] = []
+    /// Hits just played live and recorded at a tick still to come, so the loop doesn't play them a second time
+    private var heardLive: [(pad: DrumPad, tick: Int)] = []
 
     init(sampleRate: Double) {
         self.sampleRate = sampleRate
-        // So the audio thread doesn't allocate
-        pattern.reserveCapacity(4 * Self.stepsPerBar * Self.pads.count)
+        // So the audio thread doesn't allocate, even with a hit on every tick
+        pattern.reserveCapacity(4 * Self.ticksPerBar * Self.pads.count)
         heardLive.reserveCapacity(32)
     }
 
-    var loopSteps: Int { bars * Self.stepsPerBar }
-    var framesPerStep: Double { sampleRate * 60 / tempo / Double(Self.stepsPerBeat) }
+    var loopTicks: Int { bars * Self.ticksPerBar }
+    var framesPerTick: Double { sampleRate * 60 / tempo / Double(Self.ticksPerBeat) }
     var isRecording: Bool { recording != nil }
-    /// Sixteenths since the loop first started, below zero during the count-in
-    var position: Double { origin + Double(frames) / framesPerStep }
+    /// Ticks since the loop first started, below zero during the count-in
+    var position: Double { origin + Double(frames) / framesPerTick }
 
     /// From the loop's start
     mutating func play() {
@@ -111,11 +132,11 @@ struct DrumSequencer {
         start(at: 0)
     }
 
-    private mutating func start(at step: Int) {
+    private mutating func start(at tick: Int) {
         isPlaying = true
-        origin = Double(step)
+        origin = Double(tick)
         frames = 0
-        next = step
+        next = tick
     }
 
     mutating func stop() {
@@ -130,10 +151,10 @@ struct DrumSequencer {
         guard recording == nil else { return }
         if isPlaying {
             let start = Int(position.rounded(.down))
-            recording = start..<(start + loopSteps)
+            recording = start..<(start + loopTicks)
         } else {
-            start(at: -Self.stepsPerBar)
-            recording = 0..<loopSteps
+            start(at: -Self.ticksPerBar)
+            recording = 0..<loopTicks
         }
     }
 
@@ -151,72 +172,74 @@ struct DrumSequencer {
     }
 
     static func resized(_ pattern: Set<DrumNote>, from old: Int, to new: Int) -> Set<DrumNote> {
-        let steps = new * stepsPerBar
-        guard new > old else { return pattern.filter { $0.step < steps } }
+        let ticks = new * ticksPerBar
+        guard new > old else { return pattern.filter { $0.tick < ticks } }
         return Set(pattern.flatMap { note in
-            stride(from: note.step, to: steps, by: old * stepsPerBar).map { DrumNote(pad: note.pad, step: $0) }
+            stride(from: note.tick, to: ticks, by: old * ticksPerBar).map { DrumNote(pad: note.pad, tick: $0) }
         })
     }
 
     /// The loop as it was, when the player starts over
     mutating func load(_ notes: Set<DrumNote>) {
-        pattern = notes.filter { (0..<loopSteps).contains($0.step) }
+        pattern = notes.filter { (0..<loopTicks).contains($0.tick) }
     }
 
-    /// A hit played live sounds right away. While recording, it joins the loop at the nearest sixteenth.
+    /// A hit played live sounds right away. While recording, it joins the loop, snapped to the quantize grid.
     /// - Parameter latency: frames between making a sound and hearing it
     mutating func hit(_ pad: DrumPad, latency: Double, events: inout [Event], reports: inout [Report]) {
         events.append(Event(sound: pad.sound, offset: 0))
         guard isPlaying, let recording else { return }
         // Where the clock was when the player heard what they played along to
-        let step = Int((position - latency / framesPerStep).rounded())
+        let heard = position - latency / framesPerTick
+        let grid = Double(quantize.ticks ?? 1)
+        let tick = Int((heard / grid).rounded() * grid)
         // A pass's last downbeat counts too, played a little early or late
-        guard step >= recording.lowerBound, step <= recording.upperBound else { return }
-        let note = DrumNote(pad: pad, step: (step % loopSteps + loopSteps) % loopSteps)
+        guard tick >= recording.lowerBound, tick <= recording.upperBound else { return }
+        let note = DrumNote(pad: pad, tick: (tick % loopTicks + loopTicks) % loopTicks)
         if pattern.insert(note).inserted { reports.append(.recorded(note)) }
-        if step >= next, heardLive.count < heardLive.capacity { heardLive.append((pad, step)) }
+        if tick >= next, heardLive.count < heardLive.capacity { heardLive.append((pad, tick)) }
     }
 
-    /// Moves the clock on by `frames`, adding the clicks and the loop's hits that start in them
+    /// Moves the clock on by `count` frames, adding the clicks and the loop's hits that start in them
     mutating func advance(_ count: Int, events: inout [Event], reports: inout [Report]) {
         guard isPlaying, count > 0 else { return }
-        let perStep = framesPerStep
+        let perTick = framesPerTick
         let end = frames + count
-        // Each sixteenth sounds on a whole frame, in whichever buffer that falls in
-        while case let at = Int(((Double(next) - origin) * perStep).rounded(.up)), at < end {
+        // Each tick falls on a whole frame, in whichever buffer that's in
+        while case let at = Int(((Double(next) - origin) * perTick).rounded(.up)), at < end {
             fire(next, at: max(0, at - frames), events: &events, reports: &reports)
             next += 1
         }
         frames = end
-        // A step's grace, for a late hit on the next pass's first beat
-        if let recording, position >= Double(recording.upperBound + 1) { self.recording = nil }
+        // A sixteenth's grace, for a late hit on the next pass's first beat
+        if let recording, position >= Double(recording.upperBound + Self.ticksPerBeat / 4) { self.recording = nil }
     }
 
-    private mutating func fire(_ step: Int, at offset: Int, events: inout [Event], reports: inout [Report]) {
-        let isBeat = step % Self.stepsPerBeat == 0
-        let isBarStart = step % Self.stepsPerBar == 0
-        guard step >= 0 else {
+    private mutating func fire(_ tick: Int, at offset: Int, events: inout [Event], reports: inout [Report]) {
+        let isBeat = tick % Self.ticksPerBeat == 0
+        let isBarStart = tick % Self.ticksPerBar == 0
+        guard tick >= 0 else {
             // The count-in always clicks
             guard isBeat else { return }
             events.append(Event(sound: isBarStart ? .accent : .click, offset: offset))
-            reports.append(.beat(bar: 0, beat: (step + Self.stepsPerBar) / Self.stepsPerBeat + 1, phase: .countIn))
+            reports.append(.beat(bar: 0, beat: (tick + Self.ticksPerBar) / Self.ticksPerBeat + 1, phase: .countIn))
             return
         }
-        let loopStep = step % loopSteps
+        let loopTick = tick % loopTicks
         if isBeat {
             if isMetronomeOn { events.append(Event(sound: isBarStart ? .accent : .click, offset: offset)) }
-            let phase: Phase = recording?.contains(step) == true ? .recording : .playing
-            reports.append(.beat(bar: loopStep / Self.stepsPerBar + 1,
-                                 beat: loopStep % Self.stepsPerBar / Self.stepsPerBeat + 1, phase: phase))
+            let phase: Phase = recording?.contains(tick) == true ? .recording : .playing
+            reports.append(.beat(bar: loopTick / Self.ticksPerBar + 1,
+                                 beat: loopTick % Self.ticksPerBar / Self.ticksPerBeat + 1, phase: phase))
         }
-        for pad in Self.pads where pattern.contains(DrumNote(pad: pad, step: loopStep)) {
-            if let live = heardLive.firstIndex(where: { $0.pad == pad && $0.step == step }) {
+        for pad in Self.pads where pattern.contains(DrumNote(pad: pad, tick: loopTick)) {
+            if let live = heardLive.firstIndex(where: { $0.pad == pad && $0.tick == tick }) {
                 heardLive.remove(at: live)
                 continue
             }
             events.append(Event(sound: pad.sound, offset: offset))
             reports.append(.played(pad))
         }
-        heardLive.removeAll { $0.step < step }
+        if !heardLive.isEmpty { heardLive.removeAll { $0.tick < tick } }
     }
 }

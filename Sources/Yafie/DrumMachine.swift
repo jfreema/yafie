@@ -100,6 +100,13 @@ final class DrumMachineModel {
             send(.metronome(isMetronomeOn))
         }
     }
+    /// How hits recorded from now on snap to the beat
+    var quantize: DrumQuantize {
+        didSet {
+            defaults.set(quantize.rawValue, forKey: Keys.quantize)
+            send(.quantize(quantize))
+        }
+    }
     /// 1 or 4
     var bars: Int {
         didSet {
@@ -119,6 +126,7 @@ final class DrumMachineModel {
     private enum Keys {
         static let tempo = "drumTempo"
         static let metronome = "drumMetronome"
+        static let quantize = "drumQuantize"
         static let bars = "drumBars"
     }
 
@@ -126,6 +134,7 @@ final class DrumMachineModel {
         self.defaults = defaults
         tempo = defaults.object(forKey: Keys.tempo) as? Double ?? 100
         isMetronomeOn = defaults.object(forKey: Keys.metronome) as? Bool ?? true
+        quantize = defaults.string(forKey: Keys.quantize).flatMap(DrumQuantize.init) ?? .sixteenth
         bars = defaults.integer(forKey: Keys.bars) == 4 ? 4 : 1
     }
 
@@ -185,6 +194,7 @@ final class DrumMachineModel {
         send(.tempo(tempo))
         send(.metronome(isMetronomeOn))
         send(.bars(bars))
+        send(.quantize(quantize))
         send(.load(pattern))
         if isPlaying { send(.play) }
     }
@@ -318,6 +328,14 @@ private struct DrumControls: View {
                 }
                 .pickerStyle(.segmented)
                 .fixedSize()
+                Picker("Quantize", selection: Binding(get: { model.quantize }, set: { model.quantize = $0 })) {
+                    ForEach(DrumQuantize.allCases, id: \.self) { quantize in
+                        Text(quantize.name).tag(quantize)
+                    }
+                }
+                .pickerStyle(.menu)
+                .fixedSize()
+                .help("Snap hits as they're recorded to the nearest quarter, eighth or sixteenth note, or not at all")
                 Toggle("Metronome", isOn: Binding(get: { model.isMetronomeOn }, set: { model.isMetronomeOn = $0 }))
                 Spacer(minLength: 0)
             }
@@ -345,7 +363,7 @@ private struct BeatLights: View {
                 .font(.callout)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
-            ForEach(1...DrumSequencer.stepsPerBar / DrumSequencer.stepsPerBeat, id: \.self) { index in
+            ForEach(1...DrumSequencer.beatsPerBar, id: \.self) { index in
                 Circle()
                     .fill(index == beat?.beat ? color : Color.secondary.opacity(0.25))
                     .frame(width: 12, height: 12)

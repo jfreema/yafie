@@ -12,10 +12,10 @@ struct DrumPadTests {
     }
 }
 
-/// At 120 beats a minute and 48 kHz, a sixteenth is 6,000 frames, a beat 24,000 and a bar 96,000
+/// At 120 beats a minute and 48 kHz, a tick is 250 frames, a sixteenth 6,000, a beat 24,000 and a bar 96,000
 struct DrumSequencerTests {
-    private static let step = 6000
-    private static let beat = 4 * step
+    private static let sixteenth = 6000
+    private static let beat = 4 * sixteenth
     private static let bar = 4 * beat
 
     /// Runs it in 512-frame buffers, as the audio thread does, giving each sound's frame from where this started
@@ -74,12 +74,12 @@ struct DrumSequencerTests {
         sequencer.isMetronomeOn = false
         sequencer.play()
         sequencer.record()
-        _ = run(&sequencer, for: 4 * Self.step + 2000)  // a third of the way into the fifth sixteenth
+        _ = run(&sequencer, for: 4 * Self.sixteenth + 2000)  // a third of the way into the fifth sixteenth
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
         sequencer.hit(.snare, latency: 0, events: &events, reports: &reports)
         #expect(events == [DrumSequencer.Event(sound: .snare, offset: 0)])
-        #expect(reports == [.recorded(DrumNote(pad: .snare, step: 4))])
+        #expect(reports == [.recorded(DrumNote(pad: .snare, tick: 96))])
         // Next time round, the loop plays it
         let rest = run(&sequencer, for: Self.bar)
         #expect(rest.sounds.map(\.sound) == [.snare])
@@ -91,33 +91,33 @@ struct DrumSequencerTests {
         sequencer.isMetronomeOn = false
         sequencer.play()
         sequencer.record()
-        _ = run(&sequencer, for: 3 * Self.step + 4000)  // late in the fourth sixteenth
+        _ = run(&sequencer, for: 3 * Self.sixteenth + 4000)  // late in the fourth sixteenth
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
         sequencer.hit(.kick, latency: 0, events: &events, reports: &reports)
-        #expect(reports == [.recorded(DrumNote(pad: .kick, step: 4))])
+        #expect(reports == [.recorded(DrumNote(pad: .kick, tick: 96))])
         // Not again a moment later, only the pass after
-        let rest = run(&sequencer, for: Self.bar + Self.step)
-        #expect(rest.sounds.map(\.frame) == [Self.bar + 4 * Self.step - (3 * Self.step + 4000)])
+        let rest = run(&sequencer, for: Self.bar + Self.sixteenth)
+        #expect(rest.sounds.map(\.frame) == [Self.bar + 4 * Self.sixteenth - (3 * Self.sixteenth + 4000)])
     }
 
     @Test func whatWasHeardCountsNotWhatWasMade() {
         var sequencer = sequencer()
         sequencer.play()
         sequencer.record()
-        _ = run(&sequencer, for: 4 * Self.step + 3600)
+        _ = run(&sequencer, for: 4 * Self.sixteenth + 3600)
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
         // Half a sixteenth on its way out to the speakers
         sequencer.hit(.hiHat, latency: 3000, events: &events, reports: &reports)
-        #expect(reports == [.recorded(DrumNote(pad: .hiHat, step: 4))])
+        #expect(reports == [.recorded(DrumNote(pad: .hiHat, tick: 96))])
     }
 
     @Test func recordingStopsAfterOnePass() {
         var sequencer = sequencer()
         sequencer.play()
         sequencer.record()
-        _ = run(&sequencer, for: Self.bar + 2 * Self.step)
+        _ = run(&sequencer, for: Self.bar + 2 * Self.sixteenth)
         #expect(!sequencer.isRecording)
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
@@ -127,11 +127,11 @@ struct DrumSequencerTests {
     }
 
     @Test func fourBarsRepeatTheBarAndOneKeepsTheFirst() {
-        let bar: Set = [DrumNote(pad: .kick, step: 0), DrumNote(pad: .snare, step: 8)]
+        let bar: Set = [DrumNote(pad: .kick, tick: 0), DrumNote(pad: .snare, tick: 192)]
         let four = DrumSequencer.resized(bar, from: 1, to: 4)
         #expect(four.count == 8)
-        #expect(four.contains(DrumNote(pad: .snare, step: 56)))
-        #expect(DrumSequencer.resized(four.union([DrumNote(pad: .hiHat, step: 20)]), from: 4, to: 1) == bar)
+        #expect(four.contains(DrumNote(pad: .snare, tick: 192 + 3 * 384)))
+        #expect(DrumSequencer.resized(four.union([DrumNote(pad: .hiHat, tick: 480)]), from: 4, to: 1) == bar)
     }
 
     @Test func aNewTempoKeepsThePlace() {
@@ -139,16 +139,42 @@ struct DrumSequencerTests {
         sequencer.play()
         _ = run(&sequencer, for: Self.beat)
         sequencer.tempo = 60
-        #expect(sequencer.position == 4)
-        #expect(sequencer.framesPerStep == 12000)
+        #expect(sequencer.position == 96)
+        #expect(sequencer.framesPerTick == 500)
         sequencer.tempo = 500
         #expect(sequencer.tempo == 240)
     }
 
     @Test func loadingKeepsOnlyWhatFitsTheLoop() {
         var sequencer = sequencer()
-        sequencer.load([DrumNote(pad: .kick, step: 4), DrumNote(pad: .kick, step: 20)])
-        #expect(sequencer.pattern == [DrumNote(pad: .kick, step: 4)])
+        sequencer.load([DrumNote(pad: .kick, tick: 96), DrumNote(pad: .kick, tick: 480)])
+        #expect(sequencer.pattern == [DrumNote(pad: .kick, tick: 96)])
+    }
+
+    @Test(arguments: zip([DrumQuantize.none, .sixteenth, .eighth, .quarter], [160, 168, 144, 192]))
+    func quantizeSnapsHitsToItsGrid(quantize: DrumQuantize, tick: Int) {
+        var sequencer = sequencer()
+        sequencer.quantize = quantize
+        sequencer.play()
+        sequencer.record()
+        _ = run(&sequencer, for: 40000)  // 160 ticks, two thirds of the way through the second beat
+        var events: [DrumSequencer.Event] = []
+        var reports: [DrumSequencer.Report] = []
+        sequencer.hit(.snare, latency: 0, events: &events, reports: &reports)
+        #expect(reports == [.recorded(DrumNote(pad: .snare, tick: tick))])
+    }
+
+    @Test func withoutQuantizeAHitComesBackABarLater() {
+        var sequencer = sequencer()
+        sequencer.isMetronomeOn = false
+        sequencer.quantize = .none
+        sequencer.play()
+        sequencer.record()
+        _ = run(&sequencer, for: 40000)
+        var events: [DrumSequencer.Event] = []
+        var reports: [DrumSequencer.Report] = []
+        sequencer.hit(.kick, latency: 0, events: &events, reports: &reports)
+        #expect(run(&sequencer, for: Self.bar + Self.sixteenth).sounds.map(\.frame) == [Self.bar])
     }
 }
 
@@ -208,19 +234,21 @@ struct DrumKitTests {
 
 struct DrumLineTests {
     @Test(arguments: [DrumCommand.hit(.hiHat), .tempo(92), .metronome(false), .bars(4), .play, .stop, .record, .clear,
-                      .load([DrumNote(pad: .kick, step: 0), DrumNote(pad: .snare, step: 12)]), .load([])])
+                      .quantize(.none), .quantize(.eighth),
+                      .load([DrumNote(pad: .kick, tick: 0), DrumNote(pad: .snare, tick: 288)]), .load([])])
     func commandsRoundTrip(command: DrumCommand) {
         #expect(DrumCommand(line: command.line) == command)
     }
 
     @Test(arguments: [DrumMessage.ready(sampleRate: 48000), .beat(bar: 0, beat: 3, phase: .countIn),
-                      .played(.snare), .recorded(DrumNote(pad: .hiHat, step: 63)), .alive, .changed,
+                      .played(.snare), .recorded(DrumNote(pad: .hiHat, tick: 1512)), .alive, .changed,
                       .failed("There's no sound output.")])
     func messagesRoundTrip(message: DrumMessage) {
         #expect(DrumMessage(line: message.line) == message)
     }
 
-    @Test(arguments: ["", "hit", "hit cowbell", "bars 2", "tempo fast", "metronome maybe", "load kick", "play now"])
+    @Test(arguments: ["", "hit", "hit cowbell", "bars 2", "tempo fast", "metronome maybe", "quantize 1/3", "load kick",
+                      "play now"])
     func ignoresGarbageCommands(line: String) {
         #expect(DrumCommand(line: line) == nil)
     }
@@ -261,7 +289,7 @@ struct DrumMachineModelTests {
 
     @Test func fourBarsRepeatTheLoop() {
         let (model, sent) = model()
-        model.received(.recorded(DrumNote(pad: .kick, step: 0)))
+        model.received(.recorded(DrumNote(pad: .kick, tick: 0)))
         model.bars = 4
         #expect(model.pattern.count == 4)
         #expect(sent() == [.bars(4)])
@@ -269,11 +297,11 @@ struct DrumMachineModelTests {
 
     @Test func aNewPlayerIsToldEverything() {
         let (model, sent) = model()
-        model.received(.recorded(DrumNote(pad: .snare, step: 4)))
+        model.received(.recorded(DrumNote(pad: .snare, tick: 96)))
         model.togglePlay()
         model.playerStarted()
-        #expect(sent() == [.play, .tempo(100), .metronome(true), .bars(1), .load([DrumNote(pad: .snare, step: 4)]),
-                           .play])
+        #expect(sent() == [.play, .tempo(100), .metronome(true), .bars(1), .quantize(.sixteenth),
+                           .load([DrumNote(pad: .snare, tick: 96)]), .play])
     }
 
     @Test func beatsShowOnlyWhilePlaying() {
@@ -289,7 +317,7 @@ struct DrumMachineModelTests {
 
     @Test func clearEmptiesTheLoop() {
         let (model, sent) = model()
-        model.received(.recorded(DrumNote(pad: .kick, step: 0)))
+        model.received(.recorded(DrumNote(pad: .kick, tick: 0)))
         model.clear()
         #expect(model.pattern.isEmpty && sent() == [.clear])
     }

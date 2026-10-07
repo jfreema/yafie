@@ -115,6 +115,7 @@ final class DrumCore: @unchecked Sendable {
             case .hit(let pad): sequencer.hit(pad, latency: latency, events: &pending, reports: &reports)
             case .tempo(let tempo): sequencer.tempo = tempo
             case .metronome(let on): sequencer.isMetronomeOn = on
+            case .quantize(let quantize): sequencer.quantize = quantize
             case .bars(let bars): sequencer.setBars(bars)
             case .play: sequencer.play()
             case .stop: sequencer.stop()
@@ -156,6 +157,7 @@ enum DrumCommand: Equatable, Sendable {
     case hit(DrumPad)
     case tempo(Double)
     case metronome(Bool)
+    case quantize(DrumQuantize)
     case bars(Int)
     case play, stop, record, clear
     /// The loop, after the player started over
@@ -166,14 +168,15 @@ enum DrumCommand: Equatable, Sendable {
         case .hit(let pad): "hit \(pad.rawValue)"
         case .tempo(let tempo): "tempo \(tempo)"
         case .metronome(let on): "metronome \(on ? "on" : "off")"
+        case .quantize(let quantize): "quantize \(quantize.rawValue)"
         case .bars(let bars): "bars \(bars)"
         case .play: "play"
         case .stop: "stop"
         case .record: "record"
         case .clear: "clear"
         case .load(let notes):
-            (["load"] + notes.sorted { ($0.step, $0.pad.rawValue) < ($1.step, $1.pad.rawValue) }
-                .map { "\($0.pad.rawValue):\($0.step)" }).joined(separator: " ")
+            (["load"] + notes.sorted { ($0.tick, $0.pad.rawValue) < ($1.tick, $1.pad.rawValue) }
+                .map { "\($0.pad.rawValue):\($0.tick)" }).joined(separator: " ")
         }
     }
 
@@ -189,6 +192,9 @@ enum DrumCommand: Equatable, Sendable {
             self = .tempo(tempo)
         case ("metronome", 2) where parts[1] == "on" || parts[1] == "off":
             self = .metronome(parts[1] == "on")
+        case ("quantize", 2):
+            guard let quantize = DrumQuantize(rawValue: parts[1]) else { return nil }
+            self = .quantize(quantize)
         case ("bars", 2):
             guard let bars = Int(parts[1]), bars == 1 || bars == 4 else { return nil }
             self = .bars(bars)
@@ -200,8 +206,8 @@ enum DrumCommand: Equatable, Sendable {
             var notes = Set<DrumNote>()
             for token in parts.dropFirst() {
                 let pair = token.split(separator: ":").map(String.init)
-                guard pair.count == 2, let pad = DrumPad(rawValue: pair[0]), let step = Int(pair[1]) else { return nil }
-                notes.insert(DrumNote(pad: pad, step: step))
+                guard pair.count == 2, let pad = DrumPad(rawValue: pair[0]), let tick = Int(pair[1]) else { return nil }
+                notes.insert(DrumNote(pad: pad, tick: tick))
             }
             self = .load(notes)
         default:
@@ -234,7 +240,7 @@ enum DrumMessage: Equatable, Sendable {
         case .ready(let sampleRate): "ready \(sampleRate)"
         case let .beat(bar, beat, phase): "beat \(bar) \(beat) \(phase.rawValue)"
         case .played(let pad): "played \(pad.rawValue)"
-        case .recorded(let note): "recorded \(note.pad.rawValue) \(note.step)"
+        case .recorded(let note): "recorded \(note.pad.rawValue) \(note.tick)"
         case .alive: "alive"
         case .changed: "changed"
         case .failed(let reason): "failed \(reason.replacingOccurrences(of: "\n", with: " "))"
@@ -255,8 +261,8 @@ enum DrumMessage: Equatable, Sendable {
             guard let pad = DrumPad(rawValue: parts[1]) else { return nil }
             self = .played(pad)
         case ("recorded", 3):
-            guard let pad = DrumPad(rawValue: parts[1]), let step = Int(parts[2]) else { return nil }
-            self = .recorded(DrumNote(pad: pad, step: step))
+            guard let pad = DrumPad(rawValue: parts[1]), let tick = Int(parts[2]) else { return nil }
+            self = .recorded(DrumNote(pad: pad, tick: tick))
         case ("alive", 1): self = .alive
         case ("changed", 1): self = .changed
         case ("failed", 2...): self = .failed(parts.dropFirst().joined(separator: " "))
