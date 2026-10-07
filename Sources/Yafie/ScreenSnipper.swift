@@ -20,7 +20,7 @@ final class ScreenSnipper: NSObject {
     private enum Keys {
         static let enabled = "snipScreen"
     }
-    private enum Choice: Int { case copy, edit, save }
+    private enum Choice: Int { case copy, copyText, edit, save }
 
     private static let screenRecordingSettings =
         URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
@@ -108,7 +108,7 @@ final class ScreenSnipper: NSObject {
         }
     }
 
-    /// The three choices, at the pointer, which is where the selection ended. The snip on top, as a thumbnail.
+    /// The choices, at the pointer, which is where the selection ended. The snip on top, as a thumbnail.
     private func offer(_ snip: Snip) {
         let menu = NSMenu()
         menu.autoenablesItems = false
@@ -117,7 +117,8 @@ final class ScreenSnipper: NSObject {
         preview.isEnabled = false
         menu.addItem(preview)
         menu.addItem(.separator())
-        for (title, choice) in [("Copy to Clipboard", Choice.copy), ("Open in Editor", .edit), ("Save…", .save)] {
+        for (title, choice) in [("Copy to Clipboard", Choice.copy), ("Copy Text", .copyText),
+                                ("Open in Editor", .edit), ("Save…", .save)] {
             let item = NSMenuItem(title: title, action: #selector(choose(_:)), keyEquivalent: "")
             item.target = self
             item.tag = choice.rawValue
@@ -144,6 +145,9 @@ final class ScreenSnipper: NSObject {
         case .copy:
             if SnipOutput.copy(snip.image, scale: snip.scale) { snipLogger.notice("Copied the snip") }
             handBackFocus()
+        case .copyText:
+            copyText(of: snip, near: NSEvent.mouseLocation)
+            handBackFocus()
         case .edit:
             editors.open(snip, returningTo: previousApp)
             previousApp = nil
@@ -151,6 +155,23 @@ final class ScreenSnipper: NSObject {
             SnipOutput.save(snip.image, scale: snip.scale, name: snip.name, from: nil) { [weak self] _ in
                 self?.handBackFocus()
             }
+        }
+    }
+
+    /// The words in the snip, as plain text with its line breaks. Reading them takes a moment, off the main thread.
+    private func copyText(of snip: Snip, near point: NSPoint) {
+        let image = snip.image
+        Task {
+            let text = await Task.detached(priority: .userInitiated) { TextRecognizer.text(in: image) }.value
+            guard let text else {
+                snipLogger.notice("Found no text in the snip")
+                return Toast.show("No text found", near: point)
+            }
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(text, forType: .string)
+            snipLogger.notice("Copied the snip's text, \(text.split(separator: "\n").count) lines")
+            Toast.show("Text copied", near: point)
         }
     }
 

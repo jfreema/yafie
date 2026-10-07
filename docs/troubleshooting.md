@@ -46,3 +46,4 @@
 - **macOS asks every month whether Yafie can record the screen.** Expected on macOS 15 and later, for every app that takes screenshots. Click **Allow**. If the snip you were taking comes out wrong, take it again.
 - **"Another app is using ⌃⌥P."** Another app has the same shortcut. Quit it or change its shortcut, then turn snipping off and on.
 - **An app's own ⌃⌥P stopped working.** While snipping is on, ⌃⌥P belongs to Yafie in every app. Turn snipping off to give it back.
+- **Copy Text says No text found, or gets words wrong.** It reads clear text best. Zoom in on small or blurry text, then snip it again.

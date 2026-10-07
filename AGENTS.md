@@ -32,9 +32,9 @@ The app is one flat folder, `Sources/Yafie`, and the tests are in `Tests/YafieTe
 | Stay awake | `LidAwakeController`, `SleepSetting` (`pmset` through a sudoers rule), `PowerManager`, `PowerSource`, `Connectivity`, `Watchdog` (a second process that turns sleep back on if Yafie dies) |
 | Window snapping | `WindowSnapper`, `SnapLayout` (pure geometry) |
 | App preview | `AppPreview`, `DockWatcher` (the icon under the pointer), `AppWindows` (windows and their pictures), `PreviewPanel`, `PreviewLayout` (pure geometry) |
-| Screenshot tool | `ScreenSnipper`, `SnipDrawing` (pure drawing and layout), `SnipEditor` |
+| Screenshot tool | `ScreenSnipper`, `SnipDrawing` (pure drawing and layout), `SnipEditor`, `TextRecognizer` (Copy Text, with Vision) |
 | Guitar tuner | `TunerAudio`, `TunerWindow`, `PitchDetector` |
-| Shared | `HotKeys` (every global shortcut), `Updater`, `Shell` |
+| Shared | `HotKeys` (every global shortcut), `Updater`, `Shell`, `Toast` (a brief message by the pointer) |
 
 Put logic that can be pure, like geometry, drawing and parsing, in pure types with unit tests. Tests use shell scripts as stand-ins for child processes, such as the tuner's listener and `screencapture`.
 

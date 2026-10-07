@@ -14,7 +14,7 @@
     <td width="50%"><b><a href="#window-snapping">Window snapping</a></b><br>⌃⌥ and an arrow key put the front window into halves, thirds, quarters or sixths.</td>
   </tr>
   <tr>
-    <td width="50%"><b><a href="#screenshot-tool">Screenshot tool</a></b><br>⌃⌥P snips part of the screen to copy, save or mark up.</td>
+    <td width="50%"><b><a href="#screenshot-tool">Screenshot tool</a></b><br>⌃⌥P snips part of the screen to copy, save or mark up, or copies the text in it.</td>
     <td width="50%"><b><a href="#guitar-tuner">Guitar tuner</a></b><br>Shows the note you're playing and how sharp or flat it is.</td>
   </tr>
   <tr>
@@ -86,7 +86,7 @@ Each display has two columns, or three on external displays with **Snap to Third
 
 ## Screenshot tool
 
-Press ⌃⌥P to snip part of the screen, then copy it, save it, or mark it up with boxes, lines, arrows, highlights and text.
+Press ⌃⌥P to snip part of the screen, then copy it, save it, mark it up with boxes, lines, arrows, highlights and text, or copy the text in it.
 
 **Turn it on:**
 
@@ -102,7 +102,9 @@ Press ⌃⌥P to snip part of the screen, then copy it, save it, or mark it up w
 
    <img src="docs/snipping-3-allow.png" width="244" alt="“Yafie” is requesting to bypass the system private window picker and directly access your screen and audio, with Allow and Open System Settings buttons">
 
-**Use it:** press ⌃⌥P and drag across part of the screen, as with ⌘⇧4. Press Space to pick a whole window instead, or Esc to cancel. A menu opens where you let go, with **Copy to Clipboard**, **Open in Editor** and **Save…**.
+**Use it:** press ⌃⌥P and drag across part of the screen, as with ⌘⇧4. Press Space to pick a whole window instead, or Esc to cancel. A menu opens where you let go, with **Copy to Clipboard**, **Copy Text**, **Open in Editor** and **Save…**.
+
+**Copy Text** copies the words in the snip as plain text, line by line, even where you can't select them, like an error message, a paused video or a scanned PDF. Your Mac reads them itself, without sending the snip anywhere.
 
 In the editor, drag to draw. Hold Shift to keep lines and arrows to 45° steps, and boxes and highlights square. For text, click where it goes, type, and press Return.
 

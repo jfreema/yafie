@@ -37,7 +37,7 @@ final class PreviewPanel {
         background.material = .popover
         background.blendingMode = .behindWindow
         background.state = .active
-        background.maskImage = Self.roundedMask(radius: 12)
+        background.maskImage = .roundedMask(radius: 12)
         panel.contentView = background
     }
 
@@ -63,18 +63,6 @@ final class PreviewPanel {
         panel.orderOut(nil)
         for view in cards { view.removeFromSuperview() }
         cards = []
-    }
-
-    /// Rounds the panel's corners, blur included
-    private static func roundedMask(radius: CGFloat) -> NSImage {
-        let image = NSImage(size: NSSize(width: 2 * radius + 1, height: 2 * radius + 1), flipped: false) { rect in
-            NSColor.black.setFill()
-            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
-            return true
-        }
-        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
-        image.resizingMode = .stretch
-        return image
     }
 }
 

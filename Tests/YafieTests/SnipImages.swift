@@ -1,4 +1,6 @@
 import CoreGraphics
+import CoreText
+import Foundation
 @testable import Yafie
 
 /// Stand-in snips
@@ -24,6 +26,25 @@ enum SnipImages {
     }
 
     static func isRed(_ color: [Double]) -> Bool { color[0] > 0.95 && color[1] < 0.35 && color[2] < 0.3 }
+
+    /// Black text on white, a line apiece from the top, big enough for Vision to read easily
+    static func text(_ lines: [String], width: Int = 900) -> CGImage {
+        let lineHeight = 80
+        let height = lineHeight * lines.count + 40
+        let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let helvetica = CTFontCreateWithName("Helvetica" as CFString, 40, nil)
+        let font = [NSAttributedString.Key(kCTFontAttributeName as String): helvetica]
+        for (index, text) in lines.enumerated() {
+            let string = NSAttributedString(string: text, attributes: font)
+            context.textPosition = CGPoint(x: 30, y: height - lineHeight * (index + 1))
+            CTLineDraw(CTLineCreateWithAttributedString(string), context)
+        }
+        return context.makeImage()!
+    }
 }
 
 /// The editor's settings, in memory
