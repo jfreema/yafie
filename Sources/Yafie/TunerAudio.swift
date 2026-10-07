@@ -127,7 +127,7 @@ final class TunerAudio {
         self.process = process
         listenerInput = input.fileHandleForWriting
         lastNews = ProcessInfo.processInfo.systemUptime
-        Self.readLines(from: output.fileHandleForReading) { [weak self] line in
+        Shell.readLines(from: output.fileHandleForReading) { [weak self] line in
             Task { @MainActor in
                 if let line { self?.received(line, session: current) } else { self?.ended(session: current) }
             }
@@ -142,25 +142,6 @@ final class TunerAudio {
                     return
                 }
             }
-        }
-    }
-
-    /// On a thread of its own, since reading a pipe blocks. Ends with nil when the listener does.
-    nonisolated private static func readLines(from reader: FileHandle, _ deliver: @escaping @Sendable (String?) -> Void) {
-        Thread.detachNewThread {
-            var pending = [UInt8]()
-            var chunk = [UInt8](repeating: 0, count: 4096)
-            while true {
-                let count = read(reader.fileDescriptor, &chunk, chunk.count)
-                if count < 0, errno == EINTR { continue }
-                guard count > 0 else { break }
-                pending += chunk[..<count]
-                while let newline = pending.firstIndex(of: UInt8(ascii: "\n")) {
-                    deliver(String(decoding: pending[..<newline], as: UTF8.self))
-                    pending.removeSubrange(...newline)
-                }
-            }
-            deliver(nil)
         }
     }
 

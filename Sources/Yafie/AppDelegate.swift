@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let snapper = WindowSnapper()
     private let snipper = ScreenSnipper()
     private let previews = AppPreview()
+    private lazy var drums = DrumMachineWindowController()
     private lazy var tuner: TunerWindowController = {
         let tuner = TunerWindowController()
         tuner.onLoudnessChange = { [weak self] in self?.updateIcon() }
@@ -66,10 +67,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             MainActor.assumeIsolated { self?.showMenu() }
         }
         #if DEBUG
-        // Test hooks: Yafie --update-now, Yafie --tuner, Yafie --snip-editor <image file>
+        // Test hooks: Yafie --update-now, Yafie --tuner, Yafie --drums, Yafie --snip-editor <image file>
         let arguments = CommandLine.arguments
         if arguments.contains("--update-now") { updater.checkForUpdates(askFirst: false) }
         if arguments.contains("--tuner") { tuner.show() }
+        if arguments.contains("--drums") { drums.show() }
         if let index = arguments.firstIndex(of: "--snip-editor"), arguments.indices.contains(index + 1),
            let data = FileManager.default.contents(atPath: arguments[index + 1]), let snip = Snip(data: data) {
             snipper.editors.open(snip, returningTo: nil)
@@ -153,6 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(.sectionHeader(title: "Tools"))
         menu.addItem(item("Guitar Tuner…", #selector(openTuner)))
+        menu.addItem(item("Drum Machine…", #selector(openDrums)))
 
         menu.addItem(.separator())
         menu.addItem(.sectionHeader(title: "Stay Awake"))
@@ -339,6 +342,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.orderFrontStandardAboutPanel(options: [.applicationVersion: Bundle.main.shortVersion, .version: ""])
     }
     @objc private func openTuner() { tuner.show() }
+    @objc private func openDrums() { drums.show() }
     @objc private func allowWindowSnapping() { snapper.openAccessibilitySettings() }
     @objc private func allowAppPreviews() { previews.openSettings() }
     @objc private func allowScreenSnipping() { snipper.openScreenRecordingSettings() }

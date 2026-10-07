@@ -14,6 +14,13 @@ final class AppWindows: @unchecked Sendable {
         let title: String
         let size: CGSize
         let isMinimized: Bool
+        /// Its title bar's red button. Nil for a window that can't be closed.
+        let closeButton: AXUIElement?
+
+        /// The same window, listed again
+        func isSame(as other: Window) -> Bool {
+            id != 0 && other.id != 0 ? id == other.id : CFEqual(element, other.element)
+        }
     }
 
     private typealias GetWindow = @convention(c) (AXUIElement, UnsafeMutablePointer<CGWindowID>) -> AXError
@@ -54,6 +61,14 @@ final class AppWindows: @unchecked Sendable {
         }
     }
 
+    /// Presses its close button, as a click on it would. The app may close it, or ask about unsaved changes first.
+    func close(_ window: Window, then done: @escaping @MainActor () -> Void) {
+        queue.async {
+            if let button = window.closeButton { AXUIElementPerformAction(button, kAXPressAction as CFString) }
+            DispatchQueue.main.async { MainActor.assumeIsolated { done() } }
+        }
+    }
+
     /// Standard windows only, which leaves out palettes, panels and the like
     private func windows(of pid: pid_t) -> [Window] {
         var raw: CFTypeRef?
@@ -61,12 +76,12 @@ final class AppWindows: @unchecked Sendable {
                                             &raw) == .success,
               let elements = raw as? [AXUIElement] else { return [] }
         let attributes = [kAXRoleAttribute, kAXSubroleAttribute, kAXTitleAttribute, kAXSizeAttribute,
-                          kAXMinimizedAttribute] as CFArray
+                          kAXMinimizedAttribute, kAXCloseButtonAttribute] as CFArray
         return elements.compactMap { element in
             // One message per window
             var raw: CFArray?
             guard AXUIElementCopyMultipleAttributeValues(element, attributes, [], &raw) == .success,
-                  let values = raw as? [AnyObject], values.count == 5,
+                  let values = raw as? [AnyObject], values.count == 6,
                   values[0] as? String == kAXWindowRole, values[1] as? String == kAXStandardWindowSubrole,
                   CFGetTypeID(values[3]) == AXValueGetTypeID() else { return nil }
             var size = CGSize.zero
@@ -74,8 +89,9 @@ final class AppWindows: @unchecked Sendable {
             else { return nil }
             var id: CGWindowID = 0
             if Self.getWindow?(element, &id) != .success { id = 0 }
+            let closeButton = CFGetTypeID(values[5]) == AXUIElementGetTypeID() ? (values[5] as! AXUIElement) : nil
             return Window(element: element, pid: pid, id: id, title: values[2] as? String ?? "", size: size,
-                          isMinimized: values[4] as? Bool ?? false)
+                          isMinimized: values[4] as? Bool ?? false, closeButton: closeButton)
         }
     }
 }

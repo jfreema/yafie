@@ -58,9 +58,20 @@ struct Annotation: Equatable, Sendable {
             case .yellow: CGColor(srgbRed: 1, green: 0.8, blue: 0, alpha: 1)
             }
         }
+    }
 
-        /// Around text, so it stands out on dark snips and light ones: black around yellow, white around the rest
-        var outline: CGColor { self == .yellow ? CGColor(gray: 0, alpha: 1) : CGColor(gray: 1, alpha: 1) }
+    /// Around a box, line, arrow or text, so it stands out on dark snips and light ones. Highlights have none.
+    enum Outline: String, CaseIterable, Sendable {
+        case none, white, red, black
+
+        var cgColor: CGColor? {
+            switch self {
+            case .none: nil
+            case .white: CGColor(gray: 1, alpha: 1)
+            case .red: Color.red.cgColor
+            case .black: CGColor(gray: 0, alpha: 1)
+            }
+        }
     }
 
     enum Thickness: String, CaseIterable, Sendable {
@@ -70,12 +81,15 @@ struct Annotation: Equatable, Sendable {
         var width: CGFloat { self == .thin ? 2 : 5 }
         /// Arrowhead length, in points. A thick head is shorter for its width, so it doesn't swamp the arrow.
         var headLength: CGFloat { self == .thin ? 10 : 18 }
-        /// Text size, in points
-        var textSize: CGFloat { self == .thin ? 16 : 24 }
-        /// The outline around text, as a percentage of its size. It's centered on the letters' edges, so half of it
-        /// shows. Thin enough to set the letters off without taking them over.
-        var textOutline: CGFloat { self == .thin ? 3 : 6 }
     }
+
+    /// Text sizes to choose from, in points
+    static let textSizes: [CGFloat] = [10, 12, 14, 16]
+    /// How far an outline shows past a box's, line's or arrow's edge, in points
+    static let outlineWidth: CGFloat = 1.5
+    /// The outline drawn along text's edges, in points. Half of it shows, the rest is under the letters: enough to set
+    /// them off without filling in their holes.
+    static let textOutlineWidth: CGFloat = 1.5
 
     struct Head: Equatable {
         var tip: CGPoint
@@ -91,12 +105,15 @@ struct Annotation: Equatable, Sendable {
 
     var kind: Kind
     var color: Color
-    /// Line width, or text size. A highlight is filled.
+    /// Line width. A highlight is filled, and text has a size of its own.
     var thickness: Thickness
     /// A text's top left
     var start: CGPoint
     var end: CGPoint
     var text = ""
+    /// In points
+    var textSize: CGFloat = 16
+    var outline = Outline.none
 
     /// A box's or highlight's rectangle
     var rect: CGRect {
@@ -148,51 +165,71 @@ enum SnipRenderer {
             context.setFillColor(color.copy(alpha: Annotation.highlightOpacity) ?? color)
             context.fill(highlight.rect)
         }
+        // Each with its outline right under it, so a later shape's outline sets it off from earlier ones
         for annotation in annotations where annotation.kind != .highlight {
-            context.setStrokeColor(annotation.color.cgColor)
-            context.setFillColor(annotation.color.cgColor)
-            context.setLineWidth(annotation.thickness.width * scale)
-            context.setLineCap(.round)
-            context.setLineJoin(.miter)
-            let (start, end) = (annotation.start, annotation.end)
-            switch annotation.kind {
-            case .box:
-                context.stroke(annotation.rect)
-            case .line:
-                context.strokeLineSegments(between: [start, end])
-            case .arrow:
-                guard let head = Annotation.head(from: start, to: end, length: annotation.thickness.headLength * scale)
-                else { continue }
-                if let shaftEnd = head.shaftEnd { context.strokeLineSegments(between: [start, shaftEnd]) }
-                context.addLines(between: [head.tip, head.left, head.right])
-                context.closePath()
-                context.fillPath()
-            case .text:
+            if annotation.kind == .text {
                 drawText(annotation, in: context, scale: scale)
-            case .highlight:
-                break
+                continue
             }
+            if let outline = annotation.outline.cgColor {
+                drawShape(annotation, color: outline, widenedBy: Annotation.outlineWidth * scale, in: context,
+                          scale: scale)
+            }
+            drawShape(annotation, color: annotation.color.cgColor, widenedBy: 0, in: context, scale: scale)
         }
     }
 
-    /// Bold, in the color, with an outline behind it, its top left at the start point
+    /// A box, line or arrow in one color. Widened on every side, it's the outline that goes under it.
+    private static func drawShape(_ annotation: Annotation, color: CGColor, widenedBy extra: CGFloat,
+                                  in context: CGContext, scale: CGFloat) {
+        context.setStrokeColor(color)
+        context.setFillColor(color)
+        context.setLineWidth(annotation.thickness.width * scale + 2 * extra)
+        context.setLineCap(.round)
+        context.setLineJoin(.miter)
+        let (start, end) = (annotation.start, annotation.end)
+        switch annotation.kind {
+        case .box:
+            context.stroke(annotation.rect)
+        case .line:
+            context.strokeLineSegments(between: [start, end])
+        case .arrow:
+            guard let head = Annotation.head(from: start, to: end, length: annotation.thickness.headLength * scale)
+            else { return }
+            if let shaftEnd = head.shaftEnd { context.strokeLineSegments(between: [start, shaftEnd]) }
+            context.addLines(between: [head.tip, head.left, head.right])
+            context.closePath()
+            if extra > 0 {
+                context.setLineWidth(2 * extra)
+                context.drawPath(using: .fillStroke)
+            } else {
+                context.fillPath()
+            }
+        case .text, .highlight:
+            break
+        }
+    }
+
+    /// Bold, in the color, with its outline behind it, its top left at the start point
     private static func drawText(_ annotation: Annotation, in context: CGContext, scale: CGFloat) {
-        let font = textFont(annotation.thickness, scale: scale)
+        let font = textFont(size: annotation.textSize, scale: scale)
         func line(_ attributes: [CFString: Any]) -> CTLine {
             var all = attributes
             all[kCTFontAttributeName] = font
             let keyed = Dictionary(uniqueKeysWithValues: all.map { (NSAttributedString.Key($0.key as String), $0.value) })
             return CTLineCreateWithAttributedString(NSAttributedString(string: annotation.text, attributes: keyed))
         }
-        // The outline, then the letters over it
-        let outline = line([kCTStrokeWidthAttributeName: annotation.thickness.textOutline,
-                            kCTStrokeColorAttributeName: annotation.color.outline])
-        let fill = line([kCTForegroundColorAttributeName: annotation.color.cgColor])
+        var lines = [line([kCTForegroundColorAttributeName: annotation.color.cgColor])]
+        if let outline = annotation.outline.cgColor {
+            // As a percentage of the size, centered on the letters' edges
+            let width = Annotation.textOutlineWidth / annotation.textSize * 100
+            lines.insert(line([kCTStrokeWidthAttributeName: width, kCTStrokeColorAttributeName: outline]), at: 0)
+        }
         context.saveGState()
         context.textMatrix = CGAffineTransform(scaleX: 1, y: -1)  // upright, since y runs down
         context.setLineJoin(.round)
         let baseline = CGPoint(x: annotation.start.x, y: annotation.start.y + CTFontGetAscent(font))
-        for line in [outline, fill] {
+        for line in lines {
             context.textPosition = baseline
             CTLineDraw(line, context)
         }
@@ -200,9 +237,9 @@ enum SnipRenderer {
     }
 
     /// The system font in bold, in the snip's pixels
-    static func textFont(_ thickness: Annotation.Thickness, scale: CGFloat) -> CTFont {
-        CTFontCreateUIFontForLanguage(.emphasizedSystem, thickness.textSize * scale, nil)
-            ?? CTFontCreateWithName("Helvetica-Bold" as CFString, thickness.textSize * scale, nil)
+    static func textFont(size: CGFloat, scale: CGFloat) -> CTFont {
+        CTFontCreateUIFontForLanguage(.emphasizedSystem, size * scale, nil)
+            ?? CTFontCreateWithName("Helvetica-Bold" as CFString, size * scale, nil)
     }
 
     /// The snip with its shapes at full resolution, in the snip's own color space so nothing shifts
@@ -263,7 +300,7 @@ struct SnipFit: Equatable {
 enum SnipEditorLayout {
     static let toolbarHeight: CGFloat = 44
     /// Room for the whole toolbar
-    static let minimumWidth: CGFloat = 600
+    static let minimumWidth: CGFloat = 900
     static let minimumCanvasHeight: CGFloat = 120
 
     /// The window's content size for a snip: actual size under the toolbar, shrunk to fit 90% of the display's

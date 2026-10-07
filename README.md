@@ -18,7 +18,8 @@
     <td width="50%"><b><a href="#guitar-tuner">Guitar tuner</a></b><br>Shows the note you're playing and how sharp or flat it is.</td>
   </tr>
   <tr>
-    <td colspan="2"><b><a href="#stay-awake-with-the-lid-closed">Stay awake with the lid closed</a></b><br>Keeps a MacBook running with its lid shut, plugged in or on battery.</td>
+    <td width="50%"><b><a href="#drum-machine">Drum machine</a></b><br>Tap a beat on the trackpad, with a metronome and a loop to play along to.</td>
+    <td width="50%"><b><a href="#stay-awake-with-the-lid-closed">Stay awake with the lid closed</a></b><br>Keeps a MacBook running with its lid shut, plugged in or on battery.</td>
   </tr>
 </table>
 
@@ -50,7 +51,7 @@ Rest the pointer on an open app's icon in the Dock to see its windows, then clic
 
 If window snapping and the screenshot tool are already on, Yafie has both permissions, so step 1 is all it takes.
 
-**Use it:** rest the pointer on an open app's icon in the Dock. Its windows appear above the icon, or beside it with the Dock on the side. Click one to bring it to the front. Move the pointer away, or click anywhere else, to close them.
+**Use it:** rest the pointer on an open app's icon in the Dock. Its windows appear above the icon, or beside it with the Dock on the side. Click one to bring it to the front, or click the × in its corner to close that window. Move the pointer away, or click anywhere else, to close the previews.
 
 The previews show the app's windows on the current desktop, oldest first, so each keeps its place. Minimized ones are dimmed.
 
@@ -106,13 +107,13 @@ Press ⌃⌥P to snip part of the screen, then copy it, save it, mark it up with
 
 **Copy Text** copies the words in the snip as plain text, line by line, even where you can't select them, like an error message, a paused video or a scanned PDF. Your Mac reads them itself, without sending the snip anywhere.
 
-In the editor, drag to draw. Hold Shift to keep lines and arrows to 45° steps, and boxes and highlights square. For text, click where it goes, type, and press Return.
+In the editor, drag to draw. Hold Shift to keep lines and arrows to 45° steps, and boxes and highlights square. For text, click where it goes, type, and press Return. **Outline** puts white, red or black around boxes, lines, arrows and text, so they stand out on any snip, and **Size** sets text from 10 to 16 points.
 
 | Keys | What they do |
 |---|---|
 | R, L, A, H, T | Box, line, arrow, highlight, text |
 | 1, 2, 3, 4 | Red, green, blue, yellow |
-| W | Thin or thick lines, small or large text |
+| W | Thin or thick lines |
 | ⌘Z, ⇧⌘Z | Undo, redo |
 | ⌘C | Copy it with its shapes. The editor stays open. |
 | ⌘S | Save it with its shapes. The editor closes. |
@@ -129,6 +130,19 @@ Shows the note you're playing and how sharp or flat you are, and says **In tune*
 <img src="docs/tuner.png" width="300" alt="The tuner showing B2, 22 cents sharp, at 125.1 Hz">
 
 It uses the input chosen in **System Settings → Sound → Input**, unless that's a Bluetooth or virtual input. Then it uses the Mac's own microphone, since opening a Bluetooth headset's microphone can make it suddenly much louder. On an audio interface, it uses the louder of inputs 1 and 2. It only ever listens and never plays sound.
+
+---
+
+## Drum machine
+
+Tap out a beat on the trackpad, with a metronome, and loop a bar or 4 bars of it to play along to.
+
+**Use it:** choose **Drum Machine…** in Yafie's menu. The trackpad is the kit: tap its top left for the snare, its top right for the kick, and anywhere along the bottom for a hi-hat. Taps play the drums while the drum machine is the front window and the pointer is over its pads. You can also click the pads.
+
+- **Play** starts the metronome, and **Stop** stops it. Space does both. Set **Tempo** from 40 to 240 beats a minute, or turn **Metronome** off.
+- **Record** records what you play for one pass of the **Loop**, a bar or 4 bars, then plays it over and over. Your hits snap to the nearest sixteenth note. From a stop, a bar's count-in comes first. Record again to add more, or **Clear** to start over.
+
+Bluetooth headphones play everything a moment late, which makes it hard to play along. Use wired ones or the Mac's speakers.
 
 ---
 

@@ -6,13 +6,16 @@ enum Yafie {
     static let showMenuNotification = Notification.Name("io.github.jfreema.yafie.showMenu")
 
     static func main() {
-        // Watchdog and tuner listener skip the dupe check
+        // Watchdog, tuner listener and drum player skip the dupe check
         if CommandLine.arguments.contains(Watchdog.argument) {
             Watchdog.run()
             return
         }
         if CommandLine.arguments.contains(TunerListener.argument) {
             TunerListener.run()
+        }
+        if CommandLine.arguments.contains(DrumPlayer.argument) {
+            DrumPlayer.run()
         }
 
         // Two copies would fight

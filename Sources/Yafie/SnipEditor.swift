@@ -211,7 +211,7 @@ final class SnipEditorController: NSObject, NSWindowDelegate, NSMenuItemValidati
         case #selector(chooseColor(_:)): item.state = Annotation.Color.allCases[item.tag] == model.color ? .on : .off
         case #selector(toggleThickness(_:)):
             item.state = model.thickness == .thick ? .on : .off
-            return model.tool != .highlight  // highlights are filled
+            return model.tool != .highlight && model.tool != .text  // highlights are filled, and text has a size
         default: break
         }
         return true
@@ -268,7 +268,7 @@ final class SnipEditorController: NSObject, NSWindowDelegate, NSMenuItemValidati
 
 // MARK: Model
 
-/// Where the editor keeps the last tool, color and thickness: UserDefaults, or memory in tests
+/// Where the editor keeps the last tool, color, thickness, outline and text size: UserDefaults, or memory in tests
 protocol EditorSettings: AnyObject {
     func string(forKey key: String) -> String?
     func set(_ value: Any?, forKey key: String)
@@ -276,7 +276,8 @@ protocol EditorSettings: AnyObject {
 
 extension UserDefaults: EditorSettings {}
 
-/// One snip in the editor: its shapes, with undo and redo, and the tool, color and thickness for the next one
+/// One snip in the editor: its shapes, with undo and redo, and the tool, color, thickness, outline and text size for
+/// the next one
 @Observable @MainActor
 final class SnipEditorModel {
     /// Shorter drags than this, in points, make no shape, so a click doesn't leave a dot
@@ -301,9 +302,20 @@ final class SnipEditorModel {
         }
     }
     var thickness: Annotation.Thickness {
+        didSet { defaults.set(thickness.rawValue, forKey: Keys.thickness) }
+    }
+    /// Boxes, lines, arrows and text share an outline. Highlights have none.
+    var outline: Annotation.Outline {
         didSet {
-            defaults.set(thickness.rawValue, forKey: Keys.thickness)
-            draft?.thickness = thickness
+            defaults.set(outline.rawValue, forKey: Keys.outline)
+            draft?.outline = outline
+        }
+    }
+    /// In points, one of Annotation.textSizes
+    var textSize: CGFloat {
+        didSet {
+            defaults.set(String(Int(textSize)), forKey: Keys.textSize)
+            draft?.textSize = textSize
         }
     }
     /// Boxes, lines, arrows and text share a color. The highlighter has its own, so highlights start yellow.
@@ -328,6 +340,8 @@ final class SnipEditorModel {
         static let color = "snipColor"
         static let highlightColor = "snipHighlightColor"
         static let thickness = "snipThickness"
+        static let outline = "snipOutline"
+        static let textSize = "snipTextSize"
     }
 
     init(snip: Snip, defaults: EditorSettings = UserDefaults.standard) {
@@ -337,6 +351,10 @@ final class SnipEditorModel {
         penColor = defaults.string(forKey: Keys.color).flatMap(Annotation.Color.init) ?? .red
         highlightColor = defaults.string(forKey: Keys.highlightColor).flatMap(Annotation.Color.init) ?? .yellow
         thickness = defaults.string(forKey: Keys.thickness).flatMap(Annotation.Thickness.init) ?? .thin
+        // White and 16 points, as text was before there was a choice
+        outline = defaults.string(forKey: Keys.outline).flatMap(Annotation.Outline.init) ?? .white
+        let size = defaults.string(forKey: Keys.textSize).flatMap(Double.init).map { CGFloat($0) }
+        textSize = size.flatMap { Annotation.textSizes.contains($0) ? $0 : nil } ?? 16
     }
 
     var canUndo: Bool { !undos.isEmpty }
@@ -348,13 +366,15 @@ final class SnipEditorModel {
     /// In the snip's pixels. Text is placed with beginText instead.
     func begin(at pixel: CGPoint) {
         guard tool != .text else { return }
-        drawing = Annotation(kind: tool, color: color, thickness: thickness, start: pixel, end: pixel)
+        drawing = Annotation(kind: tool, color: color, thickness: thickness, start: pixel, end: pixel,
+                             outline: tool == .highlight ? .none : outline)
     }
 
     /// A new text, its top left at that pixel
     func beginText(at pixel: CGPoint) {
         commitText()
-        draft = Annotation(kind: .text, color: color, thickness: thickness, start: pixel, end: pixel)
+        draft = Annotation(kind: .text, color: color, thickness: thickness, start: pixel, end: pixel,
+                           textSize: textSize, outline: outline)
     }
 
     func updateText(_ text: String) {
@@ -475,8 +495,28 @@ private struct SnipToolbar: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .fixedSize()
-            .disabled(model.tool == .highlight)  // highlights are filled
-            .help("Thin or thick lines, small or large text (W)")
+            .disabled(model.tool == .highlight || model.tool == .text)  // highlights are filled, and text has a size
+            .help("Thin or thick lines (W)")
+
+            Picker("Outline", selection: Binding(get: { model.outline }, set: { model.outline = $0 })) {
+                ForEach(Annotation.Outline.allCases, id: \.self) { outline in
+                    Text(outline.rawValue.capitalized).tag(outline)
+                }
+            }
+            .pickerStyle(.menu)
+            .fixedSize()
+            .disabled(model.tool == .highlight)  // highlights have none
+            .help("An outline around boxes, lines, arrows and text, so they stand out")
+
+            Picker("Size", selection: Binding(get: { model.textSize }, set: { model.textSize = $0 })) {
+                ForEach(Annotation.textSizes, id: \.self) { size in
+                    Text("\(Int(size)) pt").tag(size)
+                }
+            }
+            .pickerStyle(.menu)
+            .fixedSize()
+            .disabled(model.tool != .text)
+            .help("Text size")
 
             HStack(spacing: 4) {
                 Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward") }
@@ -552,7 +592,7 @@ private struct SnipCanvas: View {
                 if let draft {
                     let origin = fit.point(for: draft.start)
                     TextEntry(model: model, color: Color(cgColor: draft.color.cgColor),
-                              size: draft.thickness.textSize * snip.scale / fit.pixelsPerPoint)
+                              size: draft.textSize * snip.scale / fit.pixelsPerPoint)
                         .frame(width: max(40, fit.frame.maxX - origin.x), alignment: .leading)
                         .padding(.leading, origin.x + TextEntry.offset.x)
                         .padding(.top, origin.y + TextEntry.offset.y)

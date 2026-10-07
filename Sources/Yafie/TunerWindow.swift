@@ -65,7 +65,7 @@ final class TunerWindowController: NSObject, NSWindowDelegate {
     private func makePanel() -> NSPanel {
         let view = TunerView(model: model, retry: { [weak self] in self?.audio.start() },
                              openPrivacySettings: { NSWorkspace.shared.open(Self.privacySettings) })
-        let panel = TunerPanel(contentRect: NSRect(origin: .zero, size: TunerView.size),
+        let panel = UtilityPanel(contentRect: NSRect(origin: .zero, size: TunerView.size),
                                styleMask: [.titled, .closable, .utilityWindow], backing: .buffered, defer: true)
         panel.title = "Tuner"
         panel.contentView = NSHostingView(rootView: view)
@@ -81,8 +81,8 @@ final class TunerWindowController: NSObject, NSWindowDelegate {
     }
 }
 
-/// Esc and ⌘W close it, though Yafie has no menu bar to carry them
-private final class TunerPanel: NSPanel {
+/// The tuner's and the drum machine's. Esc and ⌘W close it, though Yafie has no menu bar to carry them.
+final class UtilityPanel: NSPanel {
     override func cancelOperation(_ sender: Any?) { performClose(sender) }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -352,7 +352,8 @@ private struct CentsMeter: View {
     }
 }
 
-private struct MessageView: View {
+/// Why it can't go on, and what to do
+struct MessageView: View {
     let symbol: String
     let title: String
     let detail: String

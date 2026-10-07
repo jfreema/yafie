@@ -38,6 +38,7 @@ final class AppPreview {
     private lazy var panel: PreviewPanel = {
         let panel = PreviewPanel()
         panel.onChoose = { [weak self] index in self?.choose(index) }
+        panel.onClose = { [weak self] index in self?.close(index) }
         return panel
     }()
     private var dockObserver: (any NSObjectProtocol)?
@@ -186,7 +187,8 @@ final class AppPreview {
         let name = running.localizedName ?? ""
         let cards = found.map { window in
             PreviewPanel.Card(title: window.title.isEmpty ? name : window.title, size: window.size,
-                              picture: pictures[window.id], isMinimized: window.isMinimized)
+                              picture: pictures[window.id], isMinimized: window.isMinimized,
+                              canClose: window.closeButton != nil)
         }
         panel.show(cards, icon: running.icon, placement: placement)
         shown = Shown(app: app, icon: icon, edge: edge, windows: found)
@@ -285,7 +287,40 @@ final class AppPreview {
 
     private func choose(_ index: Int) {
         guard let shown, shown.windows.indices.contains(index) else { return }
+        bringForward(shown.windows[index])
+    }
+
+    /// Presses the window's close button, then looks again. The rest of the app's windows stay in the panel. If the
+    /// window's still open, the app is most likely asking about unsaved changes, so it comes forward to be answered.
+    private func close(_ index: Int) {
+        guard let shown, shown.windows.indices.contains(index) else { return }
         let window = shown.windows[index]
+        let app = shown.app
+        request += 1
+        let request = request
+        windows.close(window) { [weak self] in
+            Task {
+                // A moment for the app to close it, or to ask first
+                try? await Task.sleep(for: .milliseconds(400))
+                guard let self, request == self.request else { return }
+                self.lookAgain(at: app, after: window)
+            }
+        }
+    }
+
+    private func lookAgain(at app: DockWatcher.App, after closed: AppWindows.Window) {
+        guard let main = NSScreen.screens.first else { return }
+        let running = runningApps(app)
+        let request = request
+        windows.list(running.map(\.processIdentifier)) { [weak self] found in
+            guard let self, request == self.request, shown?.app.bundle == app.bundle else { return }
+            if let open = found.first(where: { $0.isSame(as: closed) }) { return bringForward(open) }
+            guard let first = running.first, !found.isEmpty else { return hide() }
+            show(found, of: app, first, mainHeight: main.frame.maxY)
+        }
+    }
+
+    private func bringForward(_ window: AppWindows.Window) {
         hide()
         let app = NSRunningApplication(processIdentifier: window.pid)
         if app?.isHidden == true { app?.unhide() }

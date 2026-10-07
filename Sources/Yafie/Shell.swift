@@ -30,6 +30,26 @@ enum Shell {
         let data = output.fileHandleForReading.readDataToEndOfFile()
         return Result(status: process.terminationStatus, output: String(decoding: data, as: UTF8.self))
     }
+
+    /// A child process's output, a line at a time, on a thread of its own, since reading a pipe blocks. Ends with nil
+    /// when the child does.
+    static func readLines(from reader: FileHandle, _ deliver: @escaping @Sendable (String?) -> Void) {
+        Thread.detachNewThread {
+            var pending = [UInt8]()
+            var chunk = [UInt8](repeating: 0, count: 4096)
+            while true {
+                let count = read(reader.fileDescriptor, &chunk, chunk.count)
+                if count < 0, errno == EINTR { continue }
+                guard count > 0 else { break }
+                pending += chunk[..<count]
+                while let newline = pending.firstIndex(of: UInt8(ascii: "\n")) {
+                    deliver(String(decoding: pending[..<newline], as: UTF8.self))
+                    pending.removeSubrange(...newline)
+                }
+            }
+            deliver(nil)
+        }
+    }
 }
 
 /// Root, via the password dialog

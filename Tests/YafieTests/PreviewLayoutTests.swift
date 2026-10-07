@@ -79,6 +79,12 @@ struct PreviewLayoutTests {
         #expect(PreviewLayout.fit(.zero, in: area) == area)
     }
 
+    @Test func theCloseButtonIsInThePicturesTopRightCorner() {
+        // A tall window's picture, narrower than its card
+        let picture = CGRect(x: 78, y: 28, width: 84, height: 150)
+        #expect(PreviewLayout.closeButton(on: picture) == CGRect(x: 138, y: 154, width: 20, height: 20))
+    }
+
     @Test func cardsHoldAPictureAboveATitle() {
         #expect(PreviewLayout.pictureArea(in: fullCard) == CGRect(x: 8, y: 28, width: 240, height: 150))
         #expect(PreviewLayout.titleArea(in: fullCard) == CGRect(x: 8, y: 8, width: 240, height: 16))

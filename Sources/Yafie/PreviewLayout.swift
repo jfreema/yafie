@@ -122,6 +122,14 @@ enum PreviewLayout {
         CGRect(x: padding, y: padding, width: card.width - 2 * padding, height: titleHeight)
     }
 
+    static let closeButtonSize: CGFloat = 20
+
+    /// The × that closes a window, in its picture's top right corner
+    static func closeButton(on picture: CGRect) -> CGRect {
+        CGRect(x: picture.maxX - closeButtonSize - 4, y: picture.maxY - closeButtonSize - 4, width: closeButtonSize,
+               height: closeButtonSize)
+    }
+
     /// The largest rect with the size's shape that fits in the area, centered in it, in whole points
     static func fit(_ size: CGSize, in area: CGRect) -> CGRect {
         guard size.width > 0, size.height > 0 else { return area }

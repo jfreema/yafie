@@ -10,10 +10,14 @@ final class PreviewPanel {
         var size: CGSize
         var picture: CGImage?
         var isMinimized: Bool
+        /// Shows a × that closes the window
+        var canClose: Bool
     }
 
     /// Called with the card's index when it's clicked
     var onChoose: ((Int) -> Void)?
+    /// Called with the card's index when its × is clicked
+    var onClose: ((Int) -> Void)?
 
     private let panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
                                 backing: .buffered, defer: true)
@@ -46,6 +50,7 @@ final class PreviewPanel {
         self.cards = zip(cards, placement.cards).enumerated().map { index, pair in
             let view = CardView(pair.0, icon: icon, frame: pair.1)
             view.onClick = { [weak self] in self?.onChoose?(index) }
+            view.onClose = { [weak self] in self?.onClose?(index) }
             background.addSubview(view)
             return view
         }
@@ -66,10 +71,11 @@ final class PreviewPanel {
     }
 }
 
-/// One window: its picture, or the app's icon until there is one, over its title. It lights up under the pointer,
-/// and takes the first click even though Yafie isn't the active app.
+/// One window: its picture, or the app's icon until there is one, over its title, with a × to close it. It lights up
+/// under the pointer, and takes the first click even though Yafie isn't the active app.
 private final class CardView: NSView {
     var onClick: (() -> Void)?
+    var onClose: (() -> Void)?
     var picture: CGImage? {
         didSet { layoutPicture() }
     }
@@ -78,6 +84,7 @@ private final class CardView: NSView {
     private let icon: NSImage?
     private let imageView = NSImageView()
     private let title: NSTextField
+    private let closeButton = CloseButton()
     /// The window's shape, drawn behind the icon while there's no picture
     private var placeholder: CGRect?
     private var isHovered = false {
@@ -103,6 +110,14 @@ private final class CardView: NSView {
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
         setAccessibilityLabel(card.isMinimized ? "\(card.title), minimized" : card.title)
+        if card.canClose {
+            closeButton.onPress = { [weak self] in self?.onClose?() }
+            addSubview(closeButton)  // over the picture
+            setAccessibilityCustomActions([NSAccessibilityCustomAction(name: "Close Window") { [weak self] in
+                self?.onClose?()
+                return true
+            }])
+        }
         picture = card.picture
         layoutPicture()
     }
@@ -125,6 +140,7 @@ private final class CardView: NSView {
                                      width: side, height: side)
             imageView.layer?.cornerRadius = 0
         }
+        closeButton.frame = PreviewLayout.closeButton(on: shape)
         needsDisplay = true
     }
 
@@ -149,8 +165,12 @@ private final class CardView: NSView {
     override func mouseEntered(with event: NSEvent) { isHovered = true }
     override func mouseExited(with event: NSEvent) { isHovered = false }
 
-    // Clicks anywhere on the card land on the card, not its picture or title
-    override func hitTest(_ point: NSPoint) -> NSView? { frame.contains(point) ? self : nil }
+    // Clicks anywhere on the card land on the card, not its picture or title, except on its ×
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard frame.contains(point) else { return nil }
+        let inside = convert(point, from: superview)
+        return closeButton.superview != nil && closeButton.frame.contains(inside) ? closeButton : self
+    }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func mouseDown(with event: NSEvent) {}  // claim the click, so mouseUp comes here
 
@@ -162,5 +182,40 @@ private final class CardView: NSView {
     override func accessibilityPerformPress() -> Bool {
         onClick?()
         return true
+    }
+}
+
+/// The × in a card's corner. White on a dark circle, which shows on light pictures and dark ones, and red under the
+/// pointer.
+private final class CloseButton: NSView {
+    var onPress: (() -> Void)?
+    private var isHovered = false {
+        didSet { needsDisplay = true }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let circle = isHovered ? NSColor.systemRed : NSColor.black.withAlphaComponent(0.6)
+        let configuration = NSImage.SymbolConfiguration(pointSize: bounds.height, weight: .regular)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [.white, circle]))
+        NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(configuration)?
+            .draw(in: bounds)
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas { removeTrackingArea(area) }
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                       owner: self))
+    }
+
+    override func mouseEntered(with event: NSEvent) { isHovered = true }
+    override func mouseExited(with event: NSEvent) { isHovered = false }
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override func mouseDown(with event: NSEvent) {}  // claim the click, so mouseUp comes here
+
+    override func mouseUp(with event: NSEvent) {
+        guard bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
+        onPress?()
     }
 }

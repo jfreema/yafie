@@ -22,6 +22,7 @@ struct SnipEditorModelTests {
     @Test func startsWithAThinRedBox() {
         let model = model()
         #expect(model.tool == .box && model.color == .red && model.thickness == .thin)
+        #expect(model.outline == .white && model.textSize == 16)
         #expect(!model.canUndo && !model.canRedo && !model.hasUnsavedShapes)
     }
 
@@ -37,7 +38,15 @@ struct SnipEditorModelTests {
         model.end()
         #expect(model.drawing == nil)
         #expect(model.shapes == [Annotation(kind: .arrow, color: .blue, thickness: .thick, start: CGPoint(x: 10, y: 10),
-                                            end: CGPoint(x: 60, y: 30))])
+                                            end: CGPoint(x: 60, y: 30), outline: .white)])
+    }
+
+    @Test func highlightsHaveNoOutline() {
+        let model = model()
+        model.tool = .highlight
+        model.outline = .black
+        draw(model, from: CGPoint(x: 10, y: 10), to: CGPoint(x: 60, y: 30))
+        #expect(model.shapes.first?.outline == Annotation.Outline.none)
     }
 
     @Test func aDragShorterThanFourPointsMakesNoShape() {
@@ -112,13 +121,21 @@ struct SnipEditorModelTests {
         #expect(next.color == .blue)
     }
 
-    @Test func remembersTheLastToolColorAndThickness() {
+    @Test func remembersTheLastToolColorThicknessOutlineAndSize() {
         let first = model()
         first.tool = .arrow
         first.color = .yellow
         first.thickness = .thick
+        first.outline = .black
+        first.textSize = 12
         let second = model()
         #expect(second.tool == .arrow && second.color == .yellow && second.thickness == .thick)
+        #expect(second.outline == .black && second.textSize == 12)
+    }
+
+    @Test func aTextSizeThatsNoLongerOfferedGoesBackTo16() {
+        settings.set("24", forKey: "snipTextSize")
+        #expect(model().textSize == 16)
     }
 
     @Test func rendersItsShapesAtFullResolution() {
@@ -150,7 +167,8 @@ struct SnipEditorTextTests {
         model.commitText()
         #expect(!model.isEditingText)
         #expect(model.shapes == [Annotation(kind: .text, color: .red, thickness: .thin, start: CGPoint(x: 40, y: 30),
-                                            end: CGPoint(x: 40, y: 30), text: "Look here")])
+                                            end: CGPoint(x: 40, y: 30), text: "Look here", textSize: 16,
+                                            outline: .white)])
         #expect(model.canUndo && model.hasUnsavedShapes)
     }
 
@@ -187,12 +205,13 @@ struct SnipEditorTextTests {
         #expect(model.shapes.map(\.text) == ["One"] && !model.isEditingText)
     }
 
-    @Test func colorAndSizeApplyToTheTextBeingTyped() {
+    @Test func colorSizeAndOutlineApplyToTheTextBeingTyped() {
         let model = model()
         model.beginText(at: CGPoint(x: 40, y: 30))
         model.color = .blue
-        model.thickness = .thick
-        #expect(model.draft?.color == .blue && model.draft?.thickness == .thick)
+        model.textSize = 12
+        model.outline = .black
+        #expect(model.draft?.color == .blue && model.draft?.textSize == 12 && model.draft?.outline == .black)
     }
 
     @Test func textUsesThePenColorNotTheHighlighters() {

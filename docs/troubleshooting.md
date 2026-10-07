@@ -21,6 +21,13 @@
 - **Shows nothing when you play.** Check the input in **System Settings → Sound → Input**, and that its level moves when you play. Play closer to the microphone: an unplugged electric guitar is quiet.
 - **Doesn't use your Bluetooth headset's microphone.** On purpose. Opening it switches the headset to call mode, which can make everything it plays suddenly much louder. The tuner uses the Mac's own microphone instead, or a wired one.
 - **A third Yafie process in Activity Monitor while the tuner is open.** That's the tuner's listener. It listens in a process of its own, so a stuck audio device can't freeze Yafie, and it ends when you close the tuner.
+## Drum machine
+
+- **Tapping the trackpad doesn't play the drums.** Click the drum machine to bring it to the front, and keep the pointer over its pads: the trackpad's taps go to the window under the pointer.
+- **Hits sound late.** Bluetooth headphones and speakers add a delay. Use wired headphones or the Mac's own speakers.
+- **Says Couldn't play sound.** Check the output in **System Settings → Sound**, then click **Try Again**.
+- **A fourth Yafie process in Activity Monitor while the drum machine is open.** That's its player, which makes the sound in a process of its own, like the tuner's listener. It ends when you close the drum machine.
+
 ## Window snapping
 
 - **The menu shows Allow Window Snapping….** Yafie doesn't have the Accessibility permission. Choose it, then turn Yafie on in the list that opens.
@@ -36,6 +43,8 @@
 - **A window is missing.** Only windows on the current desktop show, plus minimized ones. Full-screen windows, which have desktops of their own, and small panels like palettes don't.
 - **The app's icon, or an old picture, instead of the window.** macOS can't picture minimized windows or a hidden app's windows, so they show the last picture Yafie took, or the app's icon.
 - **macOS asks whether Yafie can bypass the system private window picker.** As with snips, click **Allow**. macOS asks again about once a month.
+- **A window comes to the front instead of closing.** Its app is asking whether to save changes, or to confirm. Answer it there.
+- **A window has no ×.** Its app doesn't let it be closed from outside, like some panels and full-screen windows.
 
 ## Screenshot tool
 

@@ -4,7 +4,7 @@ Notes for any coding agent working on Yafie.
 
 ## What Yafie is
 
-A macOS menu bar app with five features: stay awake with the lid closed, window snapping, app previews from the Dock, a screenshot tool and a guitar tuner. It's Swift 6 with SwiftPM, with no Xcode project and no third-party dependencies. It runs on macOS 14 or later, on Apple silicon or Intel. It's an accessory app (`LSUIElement`), with no Dock icon or menu bar except while a snip editor is open. [README.md](README.md) is the user guide.
+A macOS menu bar app with six features: stay awake with the lid closed, window snapping, app previews from the Dock, a screenshot tool, a guitar tuner and a drum machine. It's Swift 6 with SwiftPM, with no Xcode project and no third-party dependencies. It runs on macOS 14 or later, on Apple silicon or Intel. It's an accessory app (`LSUIElement`), with no Dock icon or menu bar except while a snip editor is open. [README.md](README.md) is the user guide.
 
 ## Build and test
 
@@ -19,8 +19,8 @@ swift test             # unit tests (Swift Testing)
 - **`swift test` sometimes fails with "plugin for module 'TestingMacros' not found".** It's a toolchain glitch, not the tests, so run it again. A real compile error can show up on a retry, so read the output each time.
 - **Linker warnings about missing search paths** come from the Command Line Tools. Ignore them.
 - **`./build.sh --install` quits and replaces the copy the user is running.** Ask first.
-- **A debug build won't start while the installed Yafie is running.** The second copy hands over to the first and quits, so quit Yafie first. These hooks work in debug builds only: `--tuner`, `--snip-editor <image file>` and `--update-now`.
-- **Logs:** `/usr/bin/log show --last 1h --predicate 'subsystem == "io.github.jfreema.yafie"'`. The categories are `lid`, `snap`, `preview`, `snip` and `tuner`.
+- **A debug build won't start while the installed Yafie is running.** The second copy hands over to the first and quits, so quit Yafie first. These hooks work in debug builds only: `--tuner`, `--drums`, `--snip-editor <image file>` and `--update-now`.
+- **Logs:** `/usr/bin/log show --last 1h --predicate 'subsystem == "io.github.jfreema.yafie"'`. The categories are `lid`, `snap`, `preview`, `snip`, `tuner` and `drums`.
 
 ## Code
 
@@ -34,14 +34,17 @@ The app is one flat folder, `Sources/Yafie`, and the tests are in `Tests/YafieTe
 | App preview | `AppPreview`, `DockWatcher` (the icon under the pointer), `AppWindows` (windows and their pictures), `PreviewPanel`, `PreviewLayout` (pure geometry) |
 | Screenshot tool | `ScreenSnipper`, `SnipDrawing` (pure drawing and layout), `SnipEditor`, `TextRecognizer` (Copy Text, with Vision) |
 | Guitar tuner | `TunerAudio`, `TunerWindow`, `PitchDetector` |
+| Drum machine | `DrumMachine` (window, pads and model), `DrumAudio` (the player process, from the app's side), `DrumPlayer` (the player process), `DrumSequencer` (pure timing and recording), `DrumKit` (pure sounds and mixing) |
 | Shared | `HotKeys` (every global shortcut), `Updater`, `Shell`, `Toast` (a brief message by the pointer) |
 
 Put logic that can be pure, like geometry, drawing and parsing, in pure types with unit tests. Tests use shell scripts as stand-ins for child processes, such as the tuner's listener and `screencapture`.
 
 ## Things that bite
 
-- **The main thread runs lid sleep, so never block it.** Accessibility calls run on a queue with a timeout. Core Audio runs in a child process (`--tuner-listen`), because AVAudioEngine can hang for good after an audio device changes.
+- **The main thread runs lid sleep, so never block it.** Accessibility calls run on a queue with a timeout. Core Audio runs in child processes (`--tuner-listen`, `--drum-play`), because AVAudioEngine can hang for good after an audio device changes.
 - **App Preview reads the Dock through Accessibility.** The Dock selects the icon under the pointer and posts `AXSelectedChildrenChanged` on its list, as DockDoor relies on too. Windows are matched to their pictures with the private `_AXUIElementGetWindow`, found with `dlsym`, since two windows can share a frame and title. Its panel is non-activating and must never take the focus.
+- **The drum player only plays.** It never touches an input, so it can't switch a Bluetooth headset to call mode. Its clock runs on its audio thread, a sample at a time, so the metronome and loop stay in time. The app writes its commands to a pipe set never to wait and never to raise SIGPIPE, so a stuck or dead player can't block or kill Yafie.
+- **Trackpad drumming uses `NSTouch`**, so taps reach the pads only while the drum window is key and the pointer is over them. A tap can also arrive as a click, which the pads ignore.
 - **Global shortcuts go through `HotKeys`**, which owns Yafie's one Carbon handler. A second handler would take other features' key presses.
 - **⌘Q in the snip editor closes the editors, not Yafie.** While an editor is open, Yafie looks like a regular app, but quitting it would also stop Stay Awake and window snapping. **Quit Yafie** is in the menu, without the shortcut.
 - **A menu item takes its key even when it's disabled.** So the snip editor's single-key shortcuts (R, L, A, H, T, 1 to 4, W) only exist while an editor has the keyboard and no text is being typed (`SnipMenu.setSingleKeys`). Otherwise those letters couldn't be typed in a text or a Save dialog's name.
@@ -57,10 +60,11 @@ Every build is signed with one self-signed certificate, **Yafie Code Signing**. 
 
 Every update to the published package raises the version in `Resources/Info.plist` (`CFBundleShortVersionString`):
 
-- **A new feature**, one that gets its own section in the README, like the screenshot tool was: the next 0.x.0, with the last number back to 0. For example, 0.8.3 → 0.9.0.
-- **Anything else**, including fixes and additions to an existing feature, like a new tool in the snip editor: 0.0.1 more. For example, 0.8.0 → 0.8.1.
+- **A new feature**, one that gets its own section in the README, like the drum machine was: the middle number up by one, and the last back to 0. For example, 1.0.3 → 1.1.0.
+- **Anything else**, including fixes and additions to an existing feature, like a new tool in the snip editor: the last number up by one. For example, 1.1.0 → 1.1.1.
+- **A major version**, like 1.0.0, only when the user asks for one.
 
-**Raise it as part of every change**, without being asked. Count from the published version in `downloads/latest.json` (none before the first release), not from `Info.plist`. Changes that go out together share one raise, and if any of them is a new feature, that raise is to the next 0.x.0.
+**Raise it as part of every change**, without being asked. Count from the published version in `downloads/latest.json` (none before the first release), not from `Info.plist`. Changes that go out together share one raise, and if any of them is a new feature, that raise is a new feature's.
 
 **Don't commit or push.** The user commits and pushes with GitHub Desktop. Pushing a new version to main publishes it to everyone: the Release workflow builds, signs and publishes the installer, and Check for Updates offers it. See [docs/buildfromsource.md](docs/buildfromsource.md#release-an-update).
 

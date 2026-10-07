@@ -104,6 +104,39 @@ struct SnipRendererTests {
         }
     }
 
+    @Test func outlinesGoAroundLinesAndBoxes() {
+        let isWhite: ([Double]) -> Bool = { $0.allSatisfy { $0 > 0.95 } }
+        let isBlack: ([Double]) -> Bool = { $0.allSatisfy { $0 < 0.05 } }
+        var line = Annotation(kind: .line, color: .red, thickness: .thin, start: CGPoint(x: 100, y: 50),
+                              end: CGPoint(x: 100, y: 250), outline: .white)
+        let outlined = SnipRenderer.render(SnipImages.plain(), [line], scale: 2)!
+        // 1.5 points a side at 2 pixels a point, around the 4-pixel line
+        let row = (80..<120).map { SnipImages.pixel(outlined, $0, 150) }
+        #expect(row.filter(SnipImages.isRed).count == 4)
+        #expect(row.filter(isWhite).count == 6)
+        line.outline = .none
+        let plain = SnipRenderer.render(SnipImages.plain(), [line], scale: 2)!
+        #expect((80..<120).filter { isWhite(SnipImages.pixel(plain, $0, 150)) }.isEmpty)
+
+        // Inside and outside a thick box's 10-pixel edge
+        let box = Annotation(kind: .box, color: .red, thickness: .thick, start: CGPoint(x: 100, y: 50),
+                             end: CGPoint(x: 300, y: 250), outline: .black)
+        let image = SnipRenderer.render(SnipImages.plain(), [box], scale: 2)!
+        #expect(isBlack(SnipImages.pixel(image, 93, 150)) && isBlack(SnipImages.pixel(image, 106, 150)))
+        #expect(SnipImages.isRed(SnipImages.pixel(image, 100, 150)))
+    }
+
+    @Test func highlightsHaveNoOutline() {
+        var highlight = Annotation(kind: .highlight, color: .yellow, thickness: .thin, start: CGPoint(x: 100, y: 50),
+                                   end: CGPoint(x: 300, y: 250))
+        let plain = SnipRenderer.render(SnipImages.plain(), [highlight], scale: 2)!
+        highlight.outline = .black
+        let outlined = SnipRenderer.render(SnipImages.plain(), [highlight], scale: 2)!
+        for (x, y) in [(96, 150), (99, 150), (100, 150), (200, 48), (304, 150)] {
+            #expect(SnipImages.pixel(plain, x, y) == SnipImages.pixel(outlined, x, y))
+        }
+    }
+
     @Test func keepsTheSnipsColorSpace() {
         let image = SnipRenderer.render(SnipImages.plain(), [], scale: 2)!
         #expect(image.colorSpace?.name == CGColorSpace.displayP3)
@@ -191,8 +224,8 @@ struct SnipEditorLayoutTests {
     private let display = CGRect(x: 0, y: 0, width: 1440, height: 875)
 
     @Test func actualSizeWhenItFits() {
-        #expect(SnipEditorLayout.contentSize(for: CGSize(width: 800, height: 500), on: display)
-                == CGSize(width: 800, height: 544))
+        #expect(SnipEditorLayout.contentSize(for: CGSize(width: 1000, height: 500), on: display)
+                == CGSize(width: 1000, height: 544))
     }
 
     @Test func shrunkToFitNinetyPercentOfTheDisplay() {
@@ -222,14 +255,16 @@ struct SnipTextTests {
         return found
     }
 
-    private func text(_ string: String, color: Annotation.Color = .red, at start: CGPoint = CGPoint(x: 100, y: 60)) -> Annotation {
-        Annotation(kind: .text, color: color, thickness: .thick, start: start, end: start, text: string)
+    private func text(_ string: String, color: Annotation.Color = .red, at start: CGPoint = CGPoint(x: 100, y: 60),
+                      size: CGFloat = 16, outline: Annotation.Outline = .white) -> Annotation {
+        Annotation(kind: .text, color: color, thickness: .thin, start: start, end: start, text: string, textSize: size,
+                   outline: outline)
     }
 
     @Test func itsTopLeftIsTheStartPoint() throws {
         let image = SnipRenderer.render(SnipImages.plain(), [text("Hi")], scale: 2)!
         let letters = try #require(box(image, in: CGRect(x: 60, y: 20, width: 300, height: 120), where: SnipImages.isRed))
-        let font = SnipRenderer.textFont(.thick, scale: 2)
+        let font = SnipRenderer.textFont(size: 16, scale: 2)
         // Letters start just past the point, and capitals come up to their cap height
         #expect(letters.minX >= 100 && letters.minX <= 106)
         let capTop = 60 + CTFontGetAscent(font) - CTFontGetCapHeight(font)
@@ -237,21 +272,25 @@ struct SnipTextTests {
         #expect(letters.height > CTFontGetCapHeight(font) - 3)
     }
 
-    @Test func itsOutlineIsWhiteOrBlackForYellow() throws {
+    @Test func itsOutlineIsTheOneChosen() {
         let isWhite: ([Double]) -> Bool = { $0.allSatisfy { $0 > 0.95 } }
         let isBlack: ([Double]) -> Bool = { $0.allSatisfy { $0 < 0.05 } }
         let region = CGRect(x: 90, y: 50, width: 120, height: 70)
-        let red = SnipRenderer.render(SnipImages.plain(), [text("Hi")], scale: 2)!
-        #expect(box(red, in: region, where: isWhite) != nil)
-        let yellow = SnipRenderer.render(SnipImages.plain(), [text("Hi", color: .yellow)], scale: 2)!
-        #expect(box(yellow, in: region, where: isBlack) != nil)
-        #expect(box(yellow, in: region, where: isWhite) == nil)
+        let white = SnipRenderer.render(SnipImages.plain(), [text("Hi")], scale: 2)!
+        #expect(box(white, in: region, where: isWhite) != nil)
+        let black = SnipRenderer.render(SnipImages.plain(), [text("Hi", outline: .black)], scale: 2)!
+        #expect(box(black, in: region, where: isBlack) != nil)
+        #expect(box(black, in: region, where: isWhite) == nil)
+        let none = SnipRenderer.render(SnipImages.plain(), [text("Hi", outline: .none)], scale: 2)!
+        #expect(box(none, in: region, where: isWhite) == nil && box(none, in: region, where: isBlack) == nil)
     }
 
-    @Test func outlinesAreAQuarterOfTheOldThinAndHalfThick() {
-        // They were 12% of the size, which took the letters over
-        #expect(Annotation.Thickness.thin.textOutline == 3)
-        #expect(Annotation.Thickness.thick.textOutline == 6)
+    @Test(arguments: Annotation.textSizes)
+    func itsSizeIsInPoints(size: CGFloat) throws {
+        let image = SnipRenderer.render(SnipImages.plain(), [text("H", size: size)], scale: 2)!
+        let letter = try #require(box(image, in: CGRect(x: 90, y: 50, width: 80, height: 70), where: SnipImages.isRed))
+        // A capital's height, at 2 pixels a point
+        #expect(abs(letter.height - CTFontGetCapHeight(SnipRenderer.textFont(size: size, scale: 2))) <= 2)
     }
 
     @Test func blankTextDrawsNothing() {
