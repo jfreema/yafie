@@ -38,7 +38,8 @@ struct DrumNote: Hashable, Sendable {
     var tick: Int
 }
 
-/// How recorded hits snap to the beat: to the nearest quarter, eighth or sixteenth note, or not at all
+/// How the loop's hits snap to the beat: to the nearest quarter, eighth or sixteenth note, or not at all. It can change
+/// any time, since the loop keeps each hit where it was played.
 enum DrumQuantize: String, CaseIterable, Sendable {
     case none, quarter = "1/4", eighth = "1/8", sixteenth = "1/16"
 
@@ -83,6 +84,9 @@ struct DrumSequencer {
     static let beatsPerBar = 4
     static let ticksPerBar = beatsPerBar * ticksPerBeat
     static let tempos: ClosedRange<Double> = 40...240
+    /// Hits on one drum closer together than this, in ticks, are one hit played twice, like the last pass's first beat
+    /// played again as the next pass starts
+    static let sameHit = ticksPerBeat / 16
     private static let pads = DrumPad.allCases
 
     let sampleRate: Double
@@ -96,11 +100,15 @@ struct DrumSequencer {
         }
     }
     var isMetronomeOn = true
-    /// For hits recorded from now on
-    var quantize = DrumQuantize.sixteenth
+    var quantize = DrumQuantize.sixteenth {
+        didSet { snapAll() }
+    }
     /// 1 or 4
     private(set) var bars = 1
+    /// The loop's hits as they were played, to the nearest tick
     private(set) var pattern: Set<DrumNote> = []
+    /// The same hits as they sound, snapped to the quantize grid
+    private var sounding: Set<DrumNote> = []
     private(set) var isPlaying = false
     /// Where the clock was, in ticks, when it started or last changed tempo, and the frames since. Counting whole
     /// frames keeps it exact, where adding up each buffer's share of a tick would drift.
@@ -117,6 +125,7 @@ struct DrumSequencer {
         self.sampleRate = sampleRate
         // So the audio thread doesn't allocate, even with a hit on every tick
         pattern.reserveCapacity(4 * Self.ticksPerBar * Self.pads.count)
+        sounding.reserveCapacity(4 * Self.ticksPerBar * Self.pads.count)
         heardLive.reserveCapacity(32)
     }
 
@@ -160,6 +169,7 @@ struct DrumSequencer {
 
     mutating func clear() {
         pattern.removeAll(keepingCapacity: true)
+        sounding.removeAll(keepingCapacity: true)
         heardLive.removeAll(keepingCapacity: true)
     }
 
@@ -169,6 +179,7 @@ struct DrumSequencer {
         pattern = Self.resized(pattern, from: bars, to: newBars)
         bars = newBars
         recording = nil
+        snapAll()
     }
 
     static func resized(_ pattern: Set<DrumNote>, from old: Int, to new: Int) -> Set<DrumNote> {
@@ -182,22 +193,52 @@ struct DrumSequencer {
     /// The loop as it was, when the player starts over
     mutating func load(_ notes: Set<DrumNote>) {
         pattern = notes.filter { (0..<loopTicks).contains($0.tick) }
+        snapAll()
     }
 
-    /// A hit played live sounds right away. While recording, it joins the loop, snapped to the quantize grid.
+    /// Where a hit sounds: on the quantize grid's nearest line, in the loop
+    func snapped(_ note: DrumNote) -> DrumNote {
+        DrumNote(pad: note.pad, tick: wrapped(snapped(note.tick)))
+    }
+
+    private func snapped(_ tick: Int) -> Int {
+        guard let grid = quantize.ticks else { return tick }
+        return Int((Double(tick) / Double(grid)).rounded()) * grid
+    }
+
+    private func wrapped(_ tick: Int) -> Int { (tick % loopTicks + loopTicks) % loopTicks }
+
+    private mutating func snapAll() {
+        sounding.removeAll(keepingCapacity: true)
+        for note in pattern { sounding.insert(snapped(note)) }
+    }
+
+    /// A hit played live sounds right away. While recording, the loop keeps it where it was played, and it sounds on
+    /// the quantize grid.
     /// - Parameter latency: frames between making a sound and hearing it
     mutating func hit(_ pad: DrumPad, latency: Double, events: inout [Event], reports: inout [Report]) {
         events.append(Event(sound: pad.sound, offset: 0))
         guard isPlaying, let recording else { return }
         // Where the clock was when the player heard what they played along to
-        let heard = position - latency / framesPerTick
-        let grid = Double(quantize.ticks ?? 1)
-        let tick = Int((heard / grid).rounded() * grid)
-        // A pass's last downbeat counts too, played a little early or late
-        guard tick >= recording.lowerBound, tick <= recording.upperBound else { return }
-        let note = DrumNote(pad: pad, tick: (tick % loopTicks + loopTicks) % loopTicks)
-        if pattern.insert(note).inserted { reports.append(.recorded(note)) }
-        if tick >= next, heardLive.count < heardLive.capacity { heardLive.append((pad, tick)) }
+        let played = Int((position - latency / framesPerTick).rounded())
+        // A little early for the pass's first beat, or a little late for the next pass's, still counts
+        let grace = Self.ticksPerBeat / 8
+        guard played >= recording.lowerBound - grace, played < recording.upperBound + grace else { return }
+        let note = DrumNote(pad: pad, tick: wrapped(played))
+        guard !pattern.contains(where: { $0.pad == pad && loopDistance($0.tick, note.tick) < Self.sameHit })
+        else { return }
+        pattern.insert(note)
+        sounding.insert(snapped(note))
+        reports.append(.recorded(note))
+        // Snapped forward to a tick still to come, it would sound again a moment later
+        let sounds = snapped(played)
+        if sounds >= next, heardLive.count < heardLive.capacity { heardLive.append((pad, sounds)) }
+    }
+
+    /// Ticks between two places in the loop, the shorter way round
+    private func loopDistance(_ a: Int, _ b: Int) -> Int {
+        let distance = abs(a - b) % loopTicks
+        return min(distance, loopTicks - distance)
     }
 
     /// Moves the clock on by `count` frames, adding the clicks and the loop's hits that start in them
@@ -232,7 +273,7 @@ struct DrumSequencer {
             reports.append(.beat(bar: loopTick / Self.ticksPerBar + 1,
                                  beat: loopTick % Self.ticksPerBar / Self.ticksPerBeat + 1, phase: phase))
         }
-        for pad in Self.pads where pattern.contains(DrumNote(pad: pad, tick: loopTick)) {
+        for pad in Self.pads where sounding.contains(DrumNote(pad: pad, tick: loopTick)) {
             if let live = heardLive.firstIndex(where: { $0.pad == pad && $0.tick == tick }) {
                 heardLive.remove(at: live)
                 continue

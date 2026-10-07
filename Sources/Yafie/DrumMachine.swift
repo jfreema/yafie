@@ -100,7 +100,7 @@ final class DrumMachineModel {
             send(.metronome(isMetronomeOn))
         }
     }
-    /// How hits recorded from now on snap to the beat
+    /// How the loop's hits snap to the beat. It can change any time, since the loop keeps them as played.
     var quantize: DrumQuantize {
         didSet {
             defaults.set(quantize.rawValue, forKey: Keys.quantize)
@@ -335,7 +335,7 @@ private struct DrumControls: View {
                 }
                 .pickerStyle(.menu)
                 .fixedSize()
-                .help("Snap hits as they're recorded to the nearest quarter, eighth or sixteenth note, or not at all")
+                .help("Snap the loop's hits to the nearest quarter, eighth or sixteenth note, or play them as you did")
                 Toggle("Metronome", isOn: Binding(get: { model.isMetronomeOn }, set: { model.isMetronomeOn = $0 }))
                 Spacer(minLength: 0)
             }

@@ -69,7 +69,7 @@ struct DrumSequencerTests {
         #expect(sequencer.isRecording)
     }
 
-    @Test func hitsJoinTheLoopAtTheNearestSixteenth() {
+    @Test func hitsSoundOnTheNearestSixteenth() {
         var sequencer = sequencer()
         sequencer.isMetronomeOn = false
         sequencer.play()
@@ -79,7 +79,7 @@ struct DrumSequencerTests {
         var reports: [DrumSequencer.Report] = []
         sequencer.hit(.snare, latency: 0, events: &events, reports: &reports)
         #expect(events == [DrumSequencer.Event(sound: .snare, offset: 0)])
-        #expect(reports == [.recorded(DrumNote(pad: .snare, tick: 96))])
+        #expect(reports == [.recorded(DrumNote(pad: .snare, tick: 104))])  // where it was played
         // Next time round, the loop plays it
         let rest = run(&sequencer, for: Self.bar)
         #expect(rest.sounds.map(\.sound) == [.snare])
@@ -95,8 +95,8 @@ struct DrumSequencerTests {
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
         sequencer.hit(.kick, latency: 0, events: &events, reports: &reports)
-        #expect(reports == [.recorded(DrumNote(pad: .kick, tick: 96))])
-        // Not again a moment later, only the pass after
+        #expect(reports == [.recorded(DrumNote(pad: .kick, tick: 88))])
+        // Not again a moment later, on the sixteenth, only the pass after
         let rest = run(&sequencer, for: Self.bar + Self.sixteenth)
         #expect(rest.sounds.map(\.frame) == [Self.bar + 4 * Self.sixteenth - (3 * Self.sixteenth + 4000)])
     }
@@ -108,9 +108,9 @@ struct DrumSequencerTests {
         _ = run(&sequencer, for: 4 * Self.sixteenth + 3600)
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
-        // Half a sixteenth on its way out to the speakers
+        // Half a sixteenth on its way out to the speakers: tick 110 sounded at 98
         sequencer.hit(.hiHat, latency: 3000, events: &events, reports: &reports)
-        #expect(reports == [.recorded(DrumNote(pad: .hiHat, tick: 96))])
+        #expect(reports == [.recorded(DrumNote(pad: .hiHat, tick: 98))])
     }
 
     @Test func recordingStopsAfterOnePass() {
@@ -151,17 +151,51 @@ struct DrumSequencerTests {
         #expect(sequencer.pattern == [DrumNote(pad: .kick, tick: 96)])
     }
 
-    @Test(arguments: zip([DrumQuantize.none, .sixteenth, .eighth, .quarter], [160, 168, 144, 192]))
-    func quantizeSnapsHitsToItsGrid(quantize: DrumQuantize, tick: Int) {
-        var sequencer = sequencer()
-        sequencer.quantize = quantize
+    /// A hit at tick 160, two thirds of the way through the second beat, played again a pass later
+    private func hitAt160(_ sequencer: inout DrumSequencer) {
+        sequencer.isMetronomeOn = false
         sequencer.play()
         sequencer.record()
-        _ = run(&sequencer, for: 40000)  // 160 ticks, two thirds of the way through the second beat
+        _ = run(&sequencer, for: 40000)
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
         sequencer.hit(.snare, latency: 0, events: &events, reports: &reports)
-        #expect(reports == [.recorded(DrumNote(pad: .snare, tick: tick))])
+        #expect(reports == [.recorded(DrumNote(pad: .snare, tick: 160))])
+    }
+
+    @Test(arguments: zip([DrumQuantize.none, .sixteenth, .eighth, .quarter], [160, 168, 144, 192]))
+    func quantizeSetsWhereHitsSound(quantize: DrumQuantize, tick: Int) {
+        var sequencer = sequencer()
+        sequencer.quantize = quantize
+        hitAt160(&sequencer)
+        // Once, next time round
+        #expect(run(&sequencer, for: Self.bar + Self.beat).sounds.map(\.frame) == [(384 + tick) * 250 - 40000])
+    }
+
+    @Test func quantizeCanChangeAfterTheHitsAreRecorded() {
+        var sequencer = sequencer()
+        hitAt160(&sequencer)
+        _ = run(&sequencer, for: Self.bar - 40000)  // to the end of the pass, which played it on the sixteenth
+        sequencer.quantize = .none
+        #expect(run(&sequencer, for: Self.bar).sounds.map(\.frame) == [160 * 250])
+        sequencer.quantize = .quarter
+        #expect(run(&sequencer, for: Self.bar).sounds.map(\.frame) == [192 * 250])
+        sequencer.quantize = .sixteenth
+        #expect(run(&sequencer, for: Self.bar).sounds.map(\.frame) == [168 * 250])
+    }
+
+    @Test func aHitPlayedAgainAsTheNextPassStartsIsKeptOnce() {
+        var sequencer = sequencer()
+        sequencer.play()
+        sequencer.record()
+        var events: [DrumSequencer.Event] = []
+        var reports: [DrumSequencer.Report] = []
+        _ = run(&sequencer, for: 500)  // 2 ticks in
+        sequencer.hit(.kick, latency: 0, events: &events, reports: &reports)
+        _ = run(&sequencer, for: Self.bar)  // 2 ticks into the next pass
+        sequencer.hit(.kick, latency: 0, events: &events, reports: &reports)
+        #expect(reports == [.recorded(DrumNote(pad: .kick, tick: 2))])
+        #expect(events.count == 2)  // both still played
     }
 
     @Test func withoutQuantizeAHitComesBackABarLater() {
