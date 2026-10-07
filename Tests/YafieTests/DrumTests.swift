@@ -164,12 +164,13 @@ struct DrumMixerTests {
         #expect(mixer.isSilent)
     }
 
-    @Test func soundsTogetherAddUpButNeverClip() {
-        var mixer = DrumMixer(sounds: [[Float](repeating: 0.7, count: 4)], gain: 1)
+    @Test func soundsTogetherAddUpButEaseInUnderFullScale() {
+        var mixer = DrumMixer(sounds: [[Float](repeating: 0.7, count: 4)])
         var output = [Float](repeating: 0, count: 4)
         let starts = [DrumSequencer.Event(sound: .kick, offset: 0), .init(sound: .kick, offset: 2)]
         output.withUnsafeMutableBufferPointer { mixer.mix(4, starting: starts, into: $0.baseAddress!) }
-        #expect(output == [0.7, 0.7, 1, 1])
+        #expect(output[0] == 0.7 && output[1] == 0.7)  // left alone under 0.8
+        #expect(output[2] > 0.99 && output[2] < 1)  // 1.4, eased in
     }
 }
 
@@ -184,6 +185,14 @@ struct DrumKitTests {
             #expect(sound.count < 48000)
             #expect(abs(sound.last ?? 1) < 0.01)
         }
+    }
+
+    @Test func theKickBoomsOnAndTheMetronomeSitsUnderTheDrums() {
+        // Still ringing 0.4 seconds in
+        #expect(sounds[DrumSound.kick.rawValue][19200..<19700].map(abs).max() ?? 0 > 0.1)
+        let peaks = sounds.map { $0.map(abs).max() ?? 0 }
+        #expect(peaks[DrumSound.click.rawValue] < 0.3 && peaks[DrumSound.accent.rawValue] < 0.35)
+        #expect(peaks[DrumSound.kick.rawValue] > 0.9 && peaks[DrumSound.snare.rawValue] > 0.8)
     }
 
     @Test func theKickIsLowAndTheHiHatHigh() {
