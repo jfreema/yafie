@@ -143,7 +143,10 @@ Tap out a beat on the trackpad, with a metronome, and loop a bar or 4 bars of it
 - **Record** records what you play for one pass of the **Loop**, a bar or 4 bars, then plays it over and over. From a stop, a bar's count-in comes first. Record again to add more, or **Clear** to start over.
 - **Quantize** snaps the loop's hits to the nearest quarter (1/4), eighth (1/8) or sixteenth note (1/16), which starts out chosen. **None** plays them as you played them. Change it any time: the loop keeps every hit as you played it, so all of them move right away.
 
-Bluetooth headphones play everything a moment late, so you hear each tap after you play it. With them, turn on **Mute Taps**: taps light up their pads and record without a sound, and you play along to the metronome and the loop. Recording allows for the delay, so the loop plays your hits where you heard the beat. Or use wired headphones or the Mac's speakers, which don't lag.
+Bluetooth headphones play everything a moment late, so you hear each tap after you play it. Wired headphones and the Mac's speakers don't lag. With Bluetooth:
+
+- Turn on **Mute Taps**. Taps light up their pads and record without a sound, so you play along to the metronome and the loop instead.
+- Recording allows for the delay your headphones tell macOS about. If the loop still plays your hits late, they lag more than that: while the loop plays, move **Bluetooth Offset** until its hits land on the clicks. It moves every hit played over Bluetooth, and the ones you play later. Set **Quantize** to **None** first to hear them move smoothly.
 
 ---
 

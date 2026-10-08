@@ -36,6 +36,8 @@ enum DrumSound: Int, CaseIterable, Sendable {
 struct DrumNote: Hashable, Sendable {
     var pad: DrumPad
     var tick: Int
+    /// Played along to Bluetooth headphones, so the Bluetooth offset moves it
+    var overBluetooth = false
 }
 
 /// How the loop's hits snap to the beat: to the nearest quarter, eighth or sixteenth note, or not at all. It can change
@@ -84,6 +86,8 @@ struct DrumSequencer {
     static let beatsPerBar = 4
     static let ticksPerBar = beatsPerBar * ticksPerBeat
     static let tempos: ClosedRange<Double> = 40...240
+    /// In milliseconds
+    static let bluetoothOffsets: ClosedRange<Double> = 0...400
     /// Hits on one drum closer together than this, in ticks, are one hit played twice, like the last pass's first beat
     /// played again as the next pass starts
     static let sameHit = ticksPerBeat / 16
@@ -97,6 +101,8 @@ struct DrumSequencer {
             // The clock keeps its place
             origin += Double(frames * Self.ticksPerBeat) * oldValue / (sampleRate * 60)
             frames = 0
+            // The Bluetooth offset is a time, so it's more or fewer ticks now
+            if bluetoothOffset > 0 { snapAll() }
         }
     }
     var isMetronomeOn = true
@@ -104,6 +110,15 @@ struct DrumSequencer {
     /// headphones. They still join the loop while recording.
     var areTapsMuted = false
     var quantize = DrumQuantize.sixteenth {
+        didSet { snapAll() }
+    }
+    /// Frames from making a sound to hearing it, as macOS reports it
+    var latency: Double = 0
+    /// The output is Bluetooth headphones or speakers, which often play later than they tell macOS
+    var isBluetooth = false
+    /// How much later than that, in milliseconds. Hits played along to Bluetooth sound this much earlier than they
+    /// arrived. It can change any time, like quantize.
+    var bluetoothOffset: Double = 0 {
         didSet { snapAll() }
     }
     /// 1 or 4
@@ -137,6 +152,10 @@ struct DrumSequencer {
     var isRecording: Bool { recording != nil }
     /// Ticks since the loop first started, below zero during the count-in
     var position: Double { origin + Double(frames) / framesPerTick }
+    /// The Bluetooth offset, in ticks at this tempo
+    private var offsetTicks: Double { bluetoothOffset * tempo * Double(Self.ticksPerBeat) / 60000 }
+    /// What the player is hearing, behind the clock by the output's delay
+    private var heardPosition: Double { position - latency / framesPerTick - (isBluetooth ? offsetTicks : 0) }
 
     /// From the loop's start
     mutating func play() {
@@ -157,12 +176,13 @@ struct DrumSequencer {
         heardLive.removeAll(keepingCapacity: true)
     }
 
-    /// Records one pass round the loop: from here if it's playing, or else from the loop's start after a bar's
-    /// count-in
+    /// Records one pass round the loop: from what the player is hearing if it's playing, or else from the loop's start
+    /// after a bar's count-in
     mutating func record() {
-        guard recording == nil else { return }
+        // Not during a pass, though one waiting on its last hits makes way
+        if let recording, position < Double(recording.upperBound) { return }
         if isPlaying {
-            let start = Int(position.rounded(.down))
+            let start = Int(heardPosition.rounded(.down))
             recording = start..<(start + loopTicks)
         } else {
             start(at: -Self.ticksPerBar)
@@ -189,7 +209,9 @@ struct DrumSequencer {
         let ticks = new * ticksPerBar
         guard new > old else { return pattern.filter { $0.tick < ticks } }
         return Set(pattern.flatMap { note in
-            stride(from: note.tick, to: ticks, by: old * ticksPerBar).map { DrumNote(pad: note.pad, tick: $0) }
+            stride(from: note.tick, to: ticks, by: old * ticksPerBar).map {
+                DrumNote(pad: note.pad, tick: $0, overBluetooth: note.overBluetooth)
+            }
         })
     }
 
@@ -199,14 +221,20 @@ struct DrumSequencer {
         snapAll()
     }
 
-    /// Where a hit sounds: on the quantize grid's nearest line, in the loop
+    /// Where a hit sounds: where it was heard, on the quantize grid's nearest line, in the loop
     func snapped(_ note: DrumNote) -> DrumNote {
-        DrumNote(pad: note.pad, tick: wrapped(snapped(note.tick)))
+        DrumNote(pad: note.pad, tick: wrapped(snapped(heard(note.tick, overBluetooth: note.overBluetooth))))
     }
 
+    /// Halfway between two lines goes to the later one, before the loop's start too
     private func snapped(_ tick: Int) -> Int {
         guard let grid = quantize.ticks else { return tick }
-        return Int((Double(tick) / Double(grid)).rounded()) * grid
+        return Int((Double(tick) / Double(grid) + 0.5).rounded(.down)) * grid
+    }
+
+    /// Where a hit was heard: one played along to Bluetooth, earlier by the offset
+    private func heard(_ tick: Int, overBluetooth: Bool) -> Int {
+        overBluetooth ? Int((Double(tick) - offsetTicks).rounded()) : tick
     }
 
     private func wrapped(_ tick: Int) -> Int { (tick % loopTicks + loopTicks) % loopTicks }
@@ -218,23 +246,25 @@ struct DrumSequencer {
 
     /// A hit played live sounds right away, unless taps are muted. While recording, the loop keeps it where it was
     /// played, and it sounds on the quantize grid.
-    /// - Parameter latency: frames between making a sound and hearing it
-    mutating func hit(_ pad: DrumPad, latency: Double, events: inout [Event], reports: inout [Report]) {
+    mutating func hit(_ pad: DrumPad, events: inout [Event], reports: inout [Report]) {
         if !areTapsMuted { events.append(Event(sound: pad.sound, offset: 0)) }
         guard isPlaying, let recording else { return }
-        // Where the clock was when the player heard what they played along to
+        // Where the clock was when the player heard what they played along to, as far as macOS knows. The loop keeps
+        // that, so a new Bluetooth offset can move it.
         let played = Int((position - latency / framesPerTick).rounded())
+        let at = heard(played, overBluetooth: isBluetooth)
         // A little early for the pass's first beat, or a little late for the next pass's, still counts
         let grace = Self.ticksPerBeat / 8
-        guard played >= recording.lowerBound - grace, played < recording.upperBound + grace else { return }
-        let note = DrumNote(pad: pad, tick: wrapped(played))
-        guard !pattern.contains(where: { $0.pad == pad && loopDistance($0.tick, note.tick) < Self.sameHit })
-        else { return }
+        guard at >= recording.lowerBound - grace, at < recording.upperBound + grace else { return }
+        guard !pattern.contains(where: {
+            $0.pad == pad && loopDistance(heard($0.tick, overBluetooth: $0.overBluetooth), at) < Self.sameHit
+        }) else { return }
+        let note = DrumNote(pad: pad, tick: wrapped(played), overBluetooth: isBluetooth)
         pattern.insert(note)
         sounding.insert(snapped(note))
         reports.append(.recorded(note))
         // Snapped forward to a tick still to come, it would sound again a moment later. Muted, it sounds only then.
-        let sounds = snapped(played)
+        let sounds = snapped(at)
         if !areTapsMuted, sounds >= next, heardLive.count < heardLive.capacity { heardLive.append((pad, sounds)) }
     }
 
@@ -255,8 +285,8 @@ struct DrumSequencer {
             next += 1
         }
         frames = end
-        // A sixteenth's grace, for a late hit on the next pass's first beat
-        if let recording, position >= Double(recording.upperBound + Self.ticksPerBeat / 4) { self.recording = nil }
+        // Once the player has heard the pass out, and a sixteenth more, for a late hit on the next pass's first beat
+        if let recording, heardPosition >= Double(recording.upperBound + Self.ticksPerBeat / 4) { self.recording = nil }
     }
 
     private mutating func fire(_ tick: Int, at offset: Int, events: inout [Event], reports: inout [Report]) {

@@ -107,6 +107,9 @@ final class DrumMachineModel {
             send(.muteTaps(areTapsMuted))
         }
     }
+    /// How much later than they tell macOS Bluetooth headphones play, in milliseconds, set with setBluetoothOffset.
+    /// Hits played along to them sound that much earlier, even ones already in the loop.
+    private(set) var bluetoothOffset: Double
     /// How the loop's hits snap to the beat. It can change any time, since the loop keeps them as played.
     var quantize: DrumQuantize {
         didSet {
@@ -134,6 +137,7 @@ final class DrumMachineModel {
         static let tempo = "drumTempo"
         static let metronome = "drumMetronome"
         static let muteTaps = "drumMuteTaps"
+        static let bluetoothOffset = "drumBluetoothOffset"
         static let quantize = "drumQuantize"
         static let bars = "drumBars"
     }
@@ -143,6 +147,7 @@ final class DrumMachineModel {
         tempo = defaults.object(forKey: Keys.tempo) as? Double ?? 100
         isMetronomeOn = defaults.object(forKey: Keys.metronome) as? Bool ?? true
         areTapsMuted = defaults.bool(forKey: Keys.muteTaps)
+        bluetoothOffset = Self.steppedOffset(defaults.double(forKey: Keys.bluetoothOffset))
         quantize = defaults.string(forKey: Keys.quantize).flatMap(DrumQuantize.init) ?? .sixteenth
         bars = defaults.integer(forKey: Keys.bars) == 4 ? 4 : 1
     }
@@ -156,6 +161,20 @@ final class DrumMachineModel {
         self.tempo = tempo
         defaults.set(tempo, forKey: Keys.tempo)
         send(.tempo(tempo))
+    }
+
+    /// In steps of 5 milliseconds, from 0 to 400
+    func setBluetoothOffset(_ value: Double) {
+        let offset = Self.steppedOffset(value)
+        guard offset != bluetoothOffset else { return }
+        bluetoothOffset = offset
+        defaults.set(offset, forKey: Keys.bluetoothOffset)
+        send(.bluetoothOffset(offset))
+    }
+
+    private static func steppedOffset(_ value: Double) -> Double {
+        let range = DrumSequencer.bluetoothOffsets
+        return min(max((value / 5).rounded() * 5, range.lowerBound), range.upperBound)
     }
 
     func hit(_ pad: DrumPad) {
@@ -203,6 +222,7 @@ final class DrumMachineModel {
         send(.tempo(tempo))
         send(.metronome(isMetronomeOn))
         send(.muteTaps(areTapsMuted))
+        send(.bluetoothOffset(bluetoothOffset))
         send(.bars(bars))
         send(.quantize(quantize))
         send(.load(pattern))
@@ -346,8 +366,7 @@ private struct DrumControls: View {
                 .pickerStyle(.menu)
                 .fixedSize()
                 .help("Snap the loop's hits to the nearest quarter, eighth or sixteenth note, or play them as you did")
-                Toggle("Mute Taps", isOn: Binding(get: { model.areTapsMuted }, set: { model.areTapsMuted = $0 }))
-                    .help("Silence your taps, which Bluetooth headphones play late. They still light up and record")
+                Toggle("Metronome", isOn: Binding(get: { model.isMetronomeOn }, set: { model.isMetronomeOn = $0 }))
                 Spacer(minLength: 0)
             }
             HStack(spacing: 10) {
@@ -358,8 +377,20 @@ private struct DrumControls: View {
                         .monospacedDigit()
                         .frame(width: 68, alignment: .trailing)
                 }
-                Toggle("Metronome", isOn: Binding(get: { model.isMetronomeOn }, set: { model.isMetronomeOn = $0 }))
-                    .padding(.leading, 6)
+            }
+            HStack(spacing: 10) {
+                Toggle("Mute Taps", isOn: Binding(get: { model.areTapsMuted }, set: { model.areTapsMuted = $0 }))
+                    .help("Silence your taps, which Bluetooth headphones play late. They still light up and record")
+                Group {
+                    Text("Bluetooth Offset")
+                        .padding(.leading, 6)
+                    Slider(value: Binding(get: { model.bluetoothOffset }, set: { model.setBluetoothOffset($0) }),
+                           in: DrumSequencer.bluetoothOffsets)
+                    Text("\(Int(model.bluetoothOffset)) ms")
+                        .monospacedDigit()
+                        .frame(width: 52, alignment: .trailing)
+                }
+                .help("Move hits played over Bluetooth earlier, for headphones that play later than they tell macOS")
             }
         }
     }

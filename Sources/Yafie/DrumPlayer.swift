@@ -31,7 +31,10 @@ enum DrumPlayer {
             finish(.failed(error.localizedDescription))
         }
         // From making a sound to hearing it, so recorded hits land where they were heard
-        core.setLatency(engine.outputNode.presentationLatency * rate + 256)
+        let latency = engine.outputNode.presentationLatency * rate + 256
+        let bluetooth = isBluetoothOutput
+        core.setOutput(latency: latency, bluetooth: bluetooth)
+        drumLogger.notice("Output delay \(Int(latency / rate * 1000)) ms, Bluetooth: \(bluetooth)")
         watchForChanges(engine)
         send(.ready(sampleRate: rate))
 
@@ -58,6 +61,22 @@ enum DrumPlayer {
         }
         // Nothing else holds them, and Swift may free a local after its last use
         withExtendedLifetime((engine, source, core)) { dispatchMain() }
+    }
+
+    /// Bluetooth headphones and speakers, which often play later than they tell macOS
+    private static var isBluetoothOutput: Bool {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+                                                 mScope: kAudioObjectPropertyScopeGlobal,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var device = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device)
+            == noErr else { return false }
+        address.mSelector = kAudioDevicePropertyTransportType
+        var transport: UInt32 = 0
+        size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &transport) == noErr else { return false }
+        return transport == kAudioDeviceTransportTypeBluetooth || transport == kAudioDeviceTransportTypeBluetoothLE
     }
 
     /// A new or changed output device means starting over. The app starts a new player once things settle.
@@ -90,7 +109,6 @@ final class DrumCore: @unchecked Sendable {
     /// Hits played live, for the next buffer
     private var pending: [DrumSequencer.Event] = []
     private var reports: [DrumSequencer.Report] = []
-    private var latency: Double = 0
     // The audio thread's alone
     private var mixer: DrumMixer
     private var events: [DrumSequencer.Event] = []
@@ -105,17 +123,22 @@ final class DrumCore: @unchecked Sendable {
         events.reserveCapacity(256)
     }
 
-    func setLatency(_ frames: Double) {
-        locked { latency = frames }
+    /// - Parameter latency: frames from making a sound to hearing it
+    func setOutput(latency: Double, bluetooth: Bool) {
+        locked {
+            sequencer.latency = latency
+            sequencer.isBluetooth = bluetooth
+        }
     }
 
     func perform(_ command: DrumCommand) {
         locked {
             switch command {
-            case .hit(let pad): sequencer.hit(pad, latency: latency, events: &pending, reports: &reports)
+            case .hit(let pad): sequencer.hit(pad, events: &pending, reports: &reports)
             case .tempo(let tempo): sequencer.tempo = tempo
             case .metronome(let on): sequencer.isMetronomeOn = on
             case .muteTaps(let muted): sequencer.areTapsMuted = muted
+            case .bluetoothOffset(let offset): sequencer.bluetoothOffset = offset
             case .quantize(let quantize): sequencer.quantize = quantize
             case .bars(let bars): sequencer.setBars(bars)
             case .play: sequencer.play()
@@ -159,6 +182,8 @@ enum DrumCommand: Equatable, Sendable {
     case tempo(Double)
     case metronome(Bool)
     case muteTaps(Bool)
+    /// In milliseconds
+    case bluetoothOffset(Double)
     case quantize(DrumQuantize)
     case bars(Int)
     case play, stop, record, clear
@@ -171,6 +196,7 @@ enum DrumCommand: Equatable, Sendable {
         case .tempo(let tempo): "tempo \(tempo)"
         case .metronome(let on): "metronome \(on ? "on" : "off")"
         case .muteTaps(let muted): "mutetaps \(muted ? "on" : "off")"
+        case .bluetoothOffset(let offset): "btoffset \(offset)"
         case .quantize(let quantize): "quantize \(quantize.rawValue)"
         case .bars(let bars): "bars \(bars)"
         case .play: "play"
@@ -179,7 +205,7 @@ enum DrumCommand: Equatable, Sendable {
         case .clear: "clear"
         case .load(let notes):
             (["load"] + notes.sorted { ($0.tick, $0.pad.rawValue) < ($1.tick, $1.pad.rawValue) }
-                .map { "\($0.pad.rawValue):\($0.tick)" }).joined(separator: " ")
+                .map { "\($0.pad.rawValue):\($0.tick)" + ($0.overBluetooth ? ":bt" : "") }).joined(separator: " ")
         }
     }
 
@@ -197,6 +223,9 @@ enum DrumCommand: Equatable, Sendable {
             self = .metronome(parts[1] == "on")
         case ("mutetaps", 2) where parts[1] == "on" || parts[1] == "off":
             self = .muteTaps(parts[1] == "on")
+        case ("btoffset", 2):
+            guard let offset = Double(parts[1]), DrumSequencer.bluetoothOffsets.contains(offset) else { return nil }
+            self = .bluetoothOffset(offset)
         case ("quantize", 2):
             guard let quantize = DrumQuantize(rawValue: parts[1]) else { return nil }
             self = .quantize(quantize)
@@ -210,9 +239,10 @@ enum DrumCommand: Equatable, Sendable {
         case ("load", _):
             var notes = Set<DrumNote>()
             for token in parts.dropFirst() {
-                let pair = token.split(separator: ":").map(String.init)
-                guard pair.count == 2, let pad = DrumPad(rawValue: pair[0]), let tick = Int(pair[1]) else { return nil }
-                notes.insert(DrumNote(pad: pad, tick: tick))
+                let fields = token.split(separator: ":").map(String.init)
+                guard fields.count == 2 || (fields.count == 3 && fields[2] == "bt"),
+                      let pad = DrumPad(rawValue: fields[0]), let tick = Int(fields[1]) else { return nil }
+                notes.insert(DrumNote(pad: pad, tick: tick, overBluetooth: fields.count == 3))
             }
             self = .load(notes)
         default:
@@ -245,7 +275,7 @@ enum DrumMessage: Equatable, Sendable {
         case .ready(let sampleRate): "ready \(sampleRate)"
         case let .beat(bar, beat, phase): "beat \(bar) \(beat) \(phase.rawValue)"
         case .played(let pad): "played \(pad.rawValue)"
-        case .recorded(let note): "recorded \(note.pad.rawValue) \(note.tick)"
+        case .recorded(let note): "recorded \(note.pad.rawValue) \(note.tick)" + (note.overBluetooth ? " bt" : "")
         case .alive: "alive"
         case .changed: "changed"
         case .failed(let reason): "failed \(reason.replacingOccurrences(of: "\n", with: " "))"
@@ -265,9 +295,10 @@ enum DrumMessage: Equatable, Sendable {
         case ("played", 2):
             guard let pad = DrumPad(rawValue: parts[1]) else { return nil }
             self = .played(pad)
-        case ("recorded", 3):
-            guard let pad = DrumPad(rawValue: parts[1]), let tick = Int(parts[2]) else { return nil }
-            self = .recorded(DrumNote(pad: pad, tick: tick))
+        case ("recorded", 3), ("recorded", 4):
+            guard parts.count == 3 || parts[3] == "bt", let pad = DrumPad(rawValue: parts[1]), let tick = Int(parts[2])
+            else { return nil }
+            self = .recorded(DrumNote(pad: pad, tick: tick, overBluetooth: parts.count == 4))
         case ("alive", 1): self = .alive
         case ("changed", 1): self = .changed
         case ("failed", 2...): self = .failed(parts.dropFirst().joined(separator: " "))

@@ -77,7 +77,7 @@ struct DrumSequencerTests {
         _ = run(&sequencer, for: 4 * Self.sixteenth + 2000)  // a third of the way into the fifth sixteenth
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
-        sequencer.hit(.snare, latency: 0, events: &events, reports: &reports)
+        sequencer.hit(.snare, events: &events, reports: &reports)
         #expect(events == [DrumSequencer.Event(sound: .snare, offset: 0)])
         #expect(reports == [.recorded(DrumNote(pad: .snare, tick: 104))])  // where it was played
         // Next time round, the loop plays it
@@ -94,7 +94,7 @@ struct DrumSequencerTests {
         _ = run(&sequencer, for: 3 * Self.sixteenth + 4000)  // late in the fourth sixteenth
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
-        sequencer.hit(.kick, latency: 0, events: &events, reports: &reports)
+        sequencer.hit(.kick, events: &events, reports: &reports)
         #expect(reports == [.recorded(DrumNote(pad: .kick, tick: 88))])
         // Not again a moment later, on the sixteenth, only the pass after
         let rest = run(&sequencer, for: Self.bar + Self.sixteenth)
@@ -110,7 +110,7 @@ struct DrumSequencerTests {
         _ = run(&sequencer, for: 3 * Self.sixteenth + 4000)  // late in the fourth sixteenth
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
-        sequencer.hit(.kick, latency: 0, events: &events, reports: &reports)
+        sequencer.hit(.kick, events: &events, reports: &reports)
         #expect(events.isEmpty)
         #expect(reports == [.recorded(DrumNote(pad: .kick, tick: 88))])
         // Unheard, so it sounds on the sixteenth a moment later, and again the pass after
@@ -120,14 +120,79 @@ struct DrumSequencerTests {
 
     @Test func whatWasHeardCountsNotWhatWasMade() {
         var sequencer = sequencer()
+        sequencer.latency = 3000  // half a sixteenth on its way out to the speakers
         sequencer.play()
         sequencer.record()
         _ = run(&sequencer, for: 4 * Self.sixteenth + 3600)
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
-        // Half a sixteenth on its way out to the speakers: tick 110 sounded at 98
-        sequencer.hit(.hiHat, latency: 3000, events: &events, reports: &reports)
+        // Tick 110 made, and 98 heard
+        sequencer.hit(.hiHat, events: &events, reports: &reports)
         #expect(reports == [.recorded(DrumNote(pad: .hiHat, tick: 98))])
+    }
+
+    @Test func recordingWhilePlayingStartsAtWhatsHeard() {
+        var sequencer = sequencer()
+        sequencer.latency = 6000  // 24 ticks
+        sequencer.play()
+        _ = run(&sequencer, for: 100 * 250)
+        sequencer.record()
+        var events: [DrumSequencer.Event] = []
+        var reports: [DrumSequencer.Report] = []
+        // Tick 100 made, and 76 heard: where the pass starts
+        sequencer.hit(.kick, events: &events, reports: &reports)
+        #expect(reports == [.recorded(DrumNote(pad: .kick, tick: 76))])
+    }
+
+    @Test func theBluetoothOffsetMovesHitsAlreadyPlayedOverBluetooth() {
+        var sequencer = sequencer()
+        sequencer.isMetronomeOn = false
+        sequencer.quantize = .none
+        sequencer.isBluetooth = true
+        sequencer.play()
+        sequencer.record()
+        _ = run(&sequencer, for: 40000)  // tick 160
+        var events: [DrumSequencer.Event] = []
+        var reports: [DrumSequencer.Report] = []
+        sequencer.hit(.snare, events: &events, reports: &reports)
+        #expect(reports == [.recorded(DrumNote(pad: .snare, tick: 160, overBluetooth: true))])
+        _ = run(&sequencer, for: Self.bar - 40000)
+        // 125 milliseconds is 24 ticks at 120 beats a minute
+        sequencer.bluetoothOffset = 125
+        #expect(run(&sequencer, for: Self.bar).sounds.map(\.frame) == [136 * 250])
+        // Still moved after a change to wired headphones
+        sequencer.isBluetooth = false
+        #expect(run(&sequencer, for: Self.bar).sounds.map(\.frame) == [136 * 250])
+        sequencer.bluetoothOffset = 0
+        #expect(run(&sequencer, for: Self.bar).sounds.map(\.frame) == [160 * 250])
+    }
+
+    @Test func theBluetoothOffsetLeavesOtherHitsAlone() {
+        var sequencer = sequencer()
+        sequencer.quantize = .none
+        hitAt160(&sequencer)
+        _ = run(&sequencer, for: Self.bar - 40000)
+        sequencer.bluetoothOffset = 125
+        #expect(run(&sequencer, for: Self.bar).sounds.map(\.frame) == [160 * 250])
+    }
+
+    @Test func aPassWaitsForItsLastHitsOverBluetooth() {
+        var sequencer = sequencer()
+        sequencer.isMetronomeOn = false
+        sequencer.quantize = .none
+        sequencer.latency = 6000  // 24 ticks
+        sequencer.isBluetooth = true
+        sequencer.bluetoothOffset = 125  // and 24 more
+        sequencer.record()
+        // The count-in and the pass are over at tick 384, but they're heard 48 ticks later
+        _ = run(&sequencer, for: (384 + 420) * 250)
+        #expect(sequencer.isRecording)
+        var events: [DrumSequencer.Event] = []
+        var reports: [DrumSequencer.Report] = []
+        // Tick 420 made, 396 heard as far as macOS knows, and 372 heard in fact: late in the pass
+        sequencer.hit(.hiHat, events: &events, reports: &reports)
+        #expect(reports == [.recorded(DrumNote(pad: .hiHat, tick: 12, overBluetooth: true))])
+        #expect(run(&sequencer, for: Self.bar).sounds.map(\.frame) == [(384 + 372 - 420) * 250])
     }
 
     @Test func recordingStopsAfterOnePass() {
@@ -138,7 +203,7 @@ struct DrumSequencerTests {
         #expect(!sequencer.isRecording)
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
-        sequencer.hit(.kick, latency: 0, events: &events, reports: &reports)
+        sequencer.hit(.kick, events: &events, reports: &reports)
         #expect(reports.isEmpty && sequencer.pattern.isEmpty)
         #expect(events.count == 1)  // still played
     }
@@ -149,6 +214,8 @@ struct DrumSequencerTests {
         #expect(four.count == 8)
         #expect(four.contains(DrumNote(pad: .snare, tick: 192 + 3 * 384)))
         #expect(DrumSequencer.resized(four.union([DrumNote(pad: .hiHat, tick: 480)]), from: 4, to: 1) == bar)
+        let bluetooth = DrumNote(pad: .kick, tick: 0, overBluetooth: true)
+        #expect(DrumSequencer.resized([bluetooth], from: 1, to: 4).filter(\.overBluetooth).count == 4)
     }
 
     @Test func aNewTempoKeepsThePlace() {
@@ -176,7 +243,7 @@ struct DrumSequencerTests {
         _ = run(&sequencer, for: 40000)
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
-        sequencer.hit(.snare, latency: 0, events: &events, reports: &reports)
+        sequencer.hit(.snare, events: &events, reports: &reports)
         #expect(reports == [.recorded(DrumNote(pad: .snare, tick: 160))])
     }
 
@@ -208,9 +275,9 @@ struct DrumSequencerTests {
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
         _ = run(&sequencer, for: 500)  // 2 ticks in
-        sequencer.hit(.kick, latency: 0, events: &events, reports: &reports)
+        sequencer.hit(.kick, events: &events, reports: &reports)
         _ = run(&sequencer, for: Self.bar)  // 2 ticks into the next pass
-        sequencer.hit(.kick, latency: 0, events: &events, reports: &reports)
+        sequencer.hit(.kick, events: &events, reports: &reports)
         #expect(reports == [.recorded(DrumNote(pad: .kick, tick: 2))])
         #expect(events.count == 2)  // both still played
     }
@@ -224,7 +291,7 @@ struct DrumSequencerTests {
         _ = run(&sequencer, for: 40000)
         var events: [DrumSequencer.Event] = []
         var reports: [DrumSequencer.Report] = []
-        sequencer.hit(.kick, latency: 0, events: &events, reports: &reports)
+        sequencer.hit(.kick, events: &events, reports: &reports)
         #expect(run(&sequencer, for: Self.bar + Self.sixteenth).sounds.map(\.frame) == [Self.bar])
     }
 }
@@ -285,26 +352,29 @@ struct DrumKitTests {
 
 struct DrumLineTests {
     @Test(arguments: [DrumCommand.hit(.hiHat), .tempo(92), .metronome(false), .bars(4), .play, .stop, .record, .clear,
-                      .quantize(.none), .quantize(.eighth), .muteTaps(true), .muteTaps(false),
-                      .load([DrumNote(pad: .kick, tick: 0), DrumNote(pad: .snare, tick: 288)]), .load([])])
+                      .quantize(.none), .quantize(.eighth), .muteTaps(true), .muteTaps(false), .bluetoothOffset(125),
+                      .load([DrumNote(pad: .kick, tick: 0), DrumNote(pad: .snare, tick: 288)]), .load([]),
+                      .load([DrumNote(pad: .kick, tick: 0, overBluetooth: true), DrumNote(pad: .kick, tick: 0)])])
     func commandsRoundTrip(command: DrumCommand) {
         #expect(DrumCommand(line: command.line) == command)
     }
 
     @Test(arguments: [DrumMessage.ready(sampleRate: 48000), .beat(bar: 0, beat: 3, phase: .countIn),
                       .played(.snare), .recorded(DrumNote(pad: .hiHat, tick: 1512)), .alive, .changed,
+                      .recorded(DrumNote(pad: .kick, tick: 7, overBluetooth: true)),
                       .failed("There's no sound output.")])
     func messagesRoundTrip(message: DrumMessage) {
         #expect(DrumMessage(line: message.line) == message)
     }
 
     @Test(arguments: ["", "hit", "hit cowbell", "bars 2", "tempo fast", "metronome maybe", "quantize 1/3", "load kick",
-                      "play now", "mutetaps", "mutetaps maybe"])
+                      "play now", "mutetaps", "mutetaps maybe", "btoffset", "btoffset lots", "btoffset 900",
+                      "load kick:0:wifi"])
     func ignoresGarbageCommands(line: String) {
         #expect(DrumCommand(line: line) == nil)
     }
 
-    @Test(arguments: ["", "beat 1 2", "beat 1 2 dance", "recorded kick", "played", "ready"])
+    @Test(arguments: ["", "beat 1 2", "beat 1 2 dance", "recorded kick", "recorded kick 7 wifi", "played", "ready"])
     func ignoresGarbageMessages(line: String) {
         #expect(DrumMessage(line: line) == nil)
     }
@@ -351,8 +421,19 @@ struct DrumMachineModelTests {
         model.received(.recorded(DrumNote(pad: .snare, tick: 96)))
         model.togglePlay()
         model.playerStarted()
-        #expect(sent() == [.play, .tempo(100), .metronome(true), .muteTaps(false), .bars(1), .quantize(.sixteenth),
-                           .load([DrumNote(pad: .snare, tick: 96)]), .play])
+        #expect(sent() == [.play, .tempo(100), .metronome(true), .muteTaps(false), .bluetoothOffset(0), .bars(1),
+                           .quantize(.sixteenth), .load([DrumNote(pad: .snare, tick: 96)]), .play])
+    }
+
+    @Test func theBluetoothOffsetGoesIn5msStepsFrom0To400() {
+        let (model, sent) = model()
+        model.setBluetoothOffset(122)
+        model.setBluetoothOffset(999)
+        model.setBluetoothOffset(-3)
+        model.setBluetoothOffset(1.4)  // still 0
+        model.setBluetoothOffset(87.6)
+        #expect(sent() == [.bluetoothOffset(120), .bluetoothOffset(400), .bluetoothOffset(0), .bluetoothOffset(90)])
+        #expect(DrumMachineModel(defaults: defaults).bluetoothOffset == 90)  // remembered
     }
 
     @Test func mutedTapsAreRemembered() {
