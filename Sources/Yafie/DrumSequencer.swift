@@ -100,6 +100,9 @@ struct DrumSequencer {
         }
     }
     var isMetronomeOn = true
+    /// Hits played live make no sound, for an output that plays them too late to play along to, like Bluetooth
+    /// headphones. They still join the loop while recording.
+    var areTapsMuted = false
     var quantize = DrumQuantize.sixteenth {
         didSet { snapAll() }
     }
@@ -213,11 +216,11 @@ struct DrumSequencer {
         for note in pattern { sounding.insert(snapped(note)) }
     }
 
-    /// A hit played live sounds right away. While recording, the loop keeps it where it was played, and it sounds on
-    /// the quantize grid.
+    /// A hit played live sounds right away, unless taps are muted. While recording, the loop keeps it where it was
+    /// played, and it sounds on the quantize grid.
     /// - Parameter latency: frames between making a sound and hearing it
     mutating func hit(_ pad: DrumPad, latency: Double, events: inout [Event], reports: inout [Report]) {
-        events.append(Event(sound: pad.sound, offset: 0))
+        if !areTapsMuted { events.append(Event(sound: pad.sound, offset: 0)) }
         guard isPlaying, let recording else { return }
         // Where the clock was when the player heard what they played along to
         let played = Int((position - latency / framesPerTick).rounded())
@@ -230,9 +233,9 @@ struct DrumSequencer {
         pattern.insert(note)
         sounding.insert(snapped(note))
         reports.append(.recorded(note))
-        // Snapped forward to a tick still to come, it would sound again a moment later
+        // Snapped forward to a tick still to come, it would sound again a moment later. Muted, it sounds only then.
         let sounds = snapped(played)
-        if sounds >= next, heardLive.count < heardLive.capacity { heardLive.append((pad, sounds)) }
+        if !areTapsMuted, sounds >= next, heardLive.count < heardLive.capacity { heardLive.append((pad, sounds)) }
     }
 
     /// Ticks between two places in the loop, the shorter way round

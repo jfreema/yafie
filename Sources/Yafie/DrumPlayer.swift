@@ -115,6 +115,7 @@ final class DrumCore: @unchecked Sendable {
             case .hit(let pad): sequencer.hit(pad, latency: latency, events: &pending, reports: &reports)
             case .tempo(let tempo): sequencer.tempo = tempo
             case .metronome(let on): sequencer.isMetronomeOn = on
+            case .muteTaps(let muted): sequencer.areTapsMuted = muted
             case .quantize(let quantize): sequencer.quantize = quantize
             case .bars(let bars): sequencer.setBars(bars)
             case .play: sequencer.play()
@@ -157,6 +158,7 @@ enum DrumCommand: Equatable, Sendable {
     case hit(DrumPad)
     case tempo(Double)
     case metronome(Bool)
+    case muteTaps(Bool)
     case quantize(DrumQuantize)
     case bars(Int)
     case play, stop, record, clear
@@ -168,6 +170,7 @@ enum DrumCommand: Equatable, Sendable {
         case .hit(let pad): "hit \(pad.rawValue)"
         case .tempo(let tempo): "tempo \(tempo)"
         case .metronome(let on): "metronome \(on ? "on" : "off")"
+        case .muteTaps(let muted): "mutetaps \(muted ? "on" : "off")"
         case .quantize(let quantize): "quantize \(quantize.rawValue)"
         case .bars(let bars): "bars \(bars)"
         case .play: "play"
@@ -192,6 +195,8 @@ enum DrumCommand: Equatable, Sendable {
             self = .tempo(tempo)
         case ("metronome", 2) where parts[1] == "on" || parts[1] == "off":
             self = .metronome(parts[1] == "on")
+        case ("mutetaps", 2) where parts[1] == "on" || parts[1] == "off":
+            self = .muteTaps(parts[1] == "on")
         case ("quantize", 2):
             guard let quantize = DrumQuantize(rawValue: parts[1]) else { return nil }
             self = .quantize(quantize)

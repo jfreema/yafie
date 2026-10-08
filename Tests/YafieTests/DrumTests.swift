@@ -101,6 +101,23 @@ struct DrumSequencerTests {
         #expect(rest.sounds.map(\.frame) == [Self.bar + 4 * Self.sixteenth - (3 * Self.sixteenth + 4000)])
     }
 
+    @Test func aMutedTapIsRecordedButOnlyTheLoopPlaysIt() {
+        var sequencer = sequencer()
+        sequencer.isMetronomeOn = false
+        sequencer.areTapsMuted = true
+        sequencer.play()
+        sequencer.record()
+        _ = run(&sequencer, for: 3 * Self.sixteenth + 4000)  // late in the fourth sixteenth
+        var events: [DrumSequencer.Event] = []
+        var reports: [DrumSequencer.Report] = []
+        sequencer.hit(.kick, latency: 0, events: &events, reports: &reports)
+        #expect(events.isEmpty)
+        #expect(reports == [.recorded(DrumNote(pad: .kick, tick: 88))])
+        // Unheard, so it sounds on the sixteenth a moment later, and again the pass after
+        let rest = run(&sequencer, for: Self.bar + Self.sixteenth)
+        #expect(rest.sounds.map(\.frame) == [2000, Self.bar + 2000])
+    }
+
     @Test func whatWasHeardCountsNotWhatWasMade() {
         var sequencer = sequencer()
         sequencer.play()
@@ -268,7 +285,7 @@ struct DrumKitTests {
 
 struct DrumLineTests {
     @Test(arguments: [DrumCommand.hit(.hiHat), .tempo(92), .metronome(false), .bars(4), .play, .stop, .record, .clear,
-                      .quantize(.none), .quantize(.eighth),
+                      .quantize(.none), .quantize(.eighth), .muteTaps(true), .muteTaps(false),
                       .load([DrumNote(pad: .kick, tick: 0), DrumNote(pad: .snare, tick: 288)]), .load([])])
     func commandsRoundTrip(command: DrumCommand) {
         #expect(DrumCommand(line: command.line) == command)
@@ -282,7 +299,7 @@ struct DrumLineTests {
     }
 
     @Test(arguments: ["", "hit", "hit cowbell", "bars 2", "tempo fast", "metronome maybe", "quantize 1/3", "load kick",
-                      "play now"])
+                      "play now", "mutetaps", "mutetaps maybe"])
     func ignoresGarbageCommands(line: String) {
         #expect(DrumCommand(line: line) == nil)
     }
@@ -334,8 +351,16 @@ struct DrumMachineModelTests {
         model.received(.recorded(DrumNote(pad: .snare, tick: 96)))
         model.togglePlay()
         model.playerStarted()
-        #expect(sent() == [.play, .tempo(100), .metronome(true), .bars(1), .quantize(.sixteenth),
+        #expect(sent() == [.play, .tempo(100), .metronome(true), .muteTaps(false), .bars(1), .quantize(.sixteenth),
                            .load([DrumNote(pad: .snare, tick: 96)]), .play])
+    }
+
+    @Test func mutedTapsAreRemembered() {
+        let (model, sent) = model()
+        #expect(!model.areTapsMuted)
+        model.areTapsMuted = true
+        #expect(sent() == [.muteTaps(true)])
+        #expect(DrumMachineModel(defaults: defaults).areTapsMuted)
     }
 
     @Test func beatsShowOnlyWhilePlaying() {

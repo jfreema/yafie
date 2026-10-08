@@ -24,7 +24,8 @@
 ## Drum machine
 
 - **Tapping the trackpad doesn't play the drums.** Click the drum machine to bring it to the front, and keep the pointer over its pads: the trackpad's taps go to the window under the pointer.
-- **Hits sound late.** Bluetooth headphones and speakers add a delay. Use wired headphones or the Mac's own speakers.
+- **Hits sound late.** Bluetooth headphones and speakers add a delay that no app can take out. Turn on **Mute Taps** to play along to the metronome and the loop without hearing your taps late, or use wired headphones or the Mac's own speakers.
+- **Taps light up the pads but make no sound.** **Mute Taps** is on. Turn it off to hear them.
 - **Says Couldn't play sound.** Check the output in **System Settings → Sound**, then click **Try Again**.
 - **A fourth Yafie process in Activity Monitor while the drum machine is open.** That's its player, which makes the sound in a process of its own, like the tuner's listener. It ends when you close the drum machine.
 

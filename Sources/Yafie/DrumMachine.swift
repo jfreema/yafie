@@ -100,6 +100,13 @@ final class DrumMachineModel {
             send(.metronome(isMetronomeOn))
         }
     }
+    /// Taps light their pads and record, but make no sound: for Bluetooth headphones, which play them late
+    var areTapsMuted: Bool {
+        didSet {
+            defaults.set(areTapsMuted, forKey: Keys.muteTaps)
+            send(.muteTaps(areTapsMuted))
+        }
+    }
     /// How the loop's hits snap to the beat. It can change any time, since the loop keeps them as played.
     var quantize: DrumQuantize {
         didSet {
@@ -126,6 +133,7 @@ final class DrumMachineModel {
     private enum Keys {
         static let tempo = "drumTempo"
         static let metronome = "drumMetronome"
+        static let muteTaps = "drumMuteTaps"
         static let quantize = "drumQuantize"
         static let bars = "drumBars"
     }
@@ -134,6 +142,7 @@ final class DrumMachineModel {
         self.defaults = defaults
         tempo = defaults.object(forKey: Keys.tempo) as? Double ?? 100
         isMetronomeOn = defaults.object(forKey: Keys.metronome) as? Bool ?? true
+        areTapsMuted = defaults.bool(forKey: Keys.muteTaps)
         quantize = defaults.string(forKey: Keys.quantize).flatMap(DrumQuantize.init) ?? .sixteenth
         bars = defaults.integer(forKey: Keys.bars) == 4 ? 4 : 1
     }
@@ -193,6 +202,7 @@ final class DrumMachineModel {
     func playerStarted() {
         send(.tempo(tempo))
         send(.metronome(isMetronomeOn))
+        send(.muteTaps(areTapsMuted))
         send(.bars(bars))
         send(.quantize(quantize))
         send(.load(pattern))
@@ -336,7 +346,8 @@ private struct DrumControls: View {
                 .pickerStyle(.menu)
                 .fixedSize()
                 .help("Snap the loop's hits to the nearest quarter, eighth or sixteenth note, or play them as you did")
-                Toggle("Metronome", isOn: Binding(get: { model.isMetronomeOn }, set: { model.isMetronomeOn = $0 }))
+                Toggle("Mute Taps", isOn: Binding(get: { model.areTapsMuted }, set: { model.areTapsMuted = $0 }))
+                    .help("Silence your taps, which Bluetooth headphones play late. They still light up and record")
                 Spacer(minLength: 0)
             }
             HStack(spacing: 10) {
@@ -347,6 +358,8 @@ private struct DrumControls: View {
                         .monospacedDigit()
                         .frame(width: 68, alignment: .trailing)
                 }
+                Toggle("Metronome", isOn: Binding(get: { model.isMetronomeOn }, set: { model.isMetronomeOn = $0 }))
+                    .padding(.leading, 6)
             }
         }
     }
